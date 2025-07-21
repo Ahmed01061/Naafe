@@ -80,7 +80,7 @@ const Footer = () => {
         <div className="divider"></div>
         
         <div className="flex flex-col sm:flex-row justify-between items-center">
-          <p className="text-sm text-light-cream">© 2024 نافع. جميع الحقوق محفوظة.</p>
+          <p className="text-sm text-light-cream">© 2025 نافع. جميع الحقوق محفوظة.</p>
           <div className="mt-4 sm:mt-0 flex gap-4">
             <Button
               variant="link"
