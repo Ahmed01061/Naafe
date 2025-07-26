@@ -7,24 +7,6 @@ import BackButton from '../components/ui/BackButton';
 import { useAuth } from '../contexts/AuthContext';
 import { useOfferContext } from '../contexts/OfferContext';
 
-interface Offer {
-  id: string;
-  providerId?: string;
-  name: string;
-  avatar: string;
-  rating: number;
-  price: number;
-  specialties: string[];
-  verified?: boolean;
-  message?: string;
-  estimatedTimeDays?: number;
-  availableDates?: string[];
-  timePreferences?: string[];
-  createdAt?: string;
-  jobRequestSeekerId?: string;
-  status?: string;
-}
-
 const RequestServiceDetailsPage = () => {
   const { id } = useParams();
   const { accessToken } = useAuth();
@@ -47,7 +29,7 @@ const RequestServiceDetailsPage = () => {
       
       if (offersData.success) {
         // Map backend offers to frontend responses model
-        const mappedOffers = (offersData.data?.offers || []).map((offer: {
+        const mappedOffers = (offersData.data?.offers || []).map(async (offer: {
           _id: string;
           provider?: {
             _id?: string;
@@ -56,7 +38,18 @@ const RequestServiceDetailsPage = () => {
             rating?: number;
             reviewCount?: number;
             specialties?: string[];
-            verified?: boolean
+            verified?: boolean;
+            isVerified?: boolean;
+            isPremium?: boolean;
+            isTopRated?: boolean;
+            createdAt?: string;
+            providerProfile?: {
+              rating?: number;
+              skills?: string[];
+              totalJobsCompleted?: number;
+              averageResponseTime?: string;
+              completionRate?: number;
+            };
           };
           jobRequest?: {
             _id?: string;
@@ -71,7 +64,7 @@ const RequestServiceDetailsPage = () => {
           timePreferences?: string[];
           status?: string;
           createdAt: string;
-        }): Offer => {
+        }) => {
           // Ensure provider exists
           if (!offer.provider) {
             console.warn('Offer missing provider data:', offer);
@@ -106,15 +99,28 @@ const RequestServiceDetailsPage = () => {
             }
           }
 
+          // Fetch provider stats
+          const statsRes = await fetch(`/api/users/${offer.provider._id}/stats`, {
+            headers: accessToken ? { 'Authorization': `Bearer ${accessToken}` } : {},
+          });
+          const statsData = await statsRes.json();
+          const providerStats = statsData.data?.stats || {};
+
           return {
             id: offer._id,
             providerId: offer.provider._id || '',
             name: providerName,
             avatar: offer.provider.avatarUrl || '',
-            rating: offer.provider.rating || 0,
+            rating: providerStats.averageRating || 0,
             price: offer.budget?.min || 0,
-            specialties: offer.provider.specialties || [],
-            verified: offer.provider.verified || false,
+            specialties: offer.provider.providerProfile?.skills || [],
+            verified: offer.provider.isVerified || false,
+            completedJobs: providerStats.totalJobsCompleted || 0,
+            responseTime: providerStats.responseTime || 'غير محدد',
+            completionRate: providerStats.completionRate || 0,
+            joinDate: offer.provider.createdAt || '',
+            isTopRated: offer.provider.isTopRated || false,
+            isPremium: offer.provider.isPremium || false,
             message: offer.message || '',
             estimatedTimeDays: offer.estimatedTimeDays || 1,
             availableDates: offer.availableDates || [],
@@ -122,11 +128,19 @@ const RequestServiceDetailsPage = () => {
             createdAt: offer.createdAt,
             jobRequestSeekerId: offer.jobRequest?.seeker || '',
             status: offer.status || 'pending',
+            stats: {
+              rating: providerStats.averageRating || 0,
+              completedJobs: providerStats.totalJobsCompleted || 0,
+              completionRate: providerStats.completionRate || 0,
+              joinDate: offer.provider.createdAt || '',
+              isTopRated: offer.provider.isTopRated || false,
+              isPremium: offer.provider.isPremium || false,
+            }
           };
         });
         
         console.log('Mapped offers:', mappedOffers);
-        setOffers(mappedOffers);
+        setOffers(await Promise.all(mappedOffers));
       }
     } catch (err) {
       console.error('Error fetching offers:', err);
@@ -164,6 +178,7 @@ const RequestServiceDetailsPage = () => {
           } : null,
           // Add comments: [] if not present
           comments: [],
+          timeline: data.data.jobRequest.deadline ? new Date(data.data.jobRequest.deadline).toLocaleString('ar-EG', { year: 'numeric', month: 'long', day: 'numeric', hour: '2-digit', minute: '2-digit' }) : undefined,
         };
         
         console.log('Mapped service data:', mappedService);

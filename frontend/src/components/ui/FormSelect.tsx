@@ -1,5 +1,5 @@
 import React, { forwardRef } from 'react';
-import { AlertCircle, CheckCircle } from 'lucide-react';
+import { AlertCircle, CheckCircle, ChevronDown } from 'lucide-react';
 import { cn } from '../../utils/helpers';
 
 interface Option {
@@ -94,6 +94,7 @@ const FormSelect = forwardRef<HTMLSelectElement, FormSelectProps>(
               sizeClasses[size],
               variantClasses[variant],
               stateClasses,
+              'appearance-none pr-10', // Hide native arrow, add space for custom icon
               className
             )}
             disabled={disabled}
@@ -106,6 +107,8 @@ const FormSelect = forwardRef<HTMLSelectElement, FormSelectProps>(
               </option>
             ))}
           </select>
+          {/* Custom dropdown arrow */}
+          <ChevronDown className="pointer-events-none absolute top-1/2 right-3 -translate-y-1/2 h-5 w-5 text-gray-400" style={{ zIndex: 2 }} />
 
           {/* Status Icons */}
           {error && (

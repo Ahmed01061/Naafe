@@ -1,13 +1,16 @@
 
+import React, { useState, useEffect } from 'react';
 import { Search, X } from 'lucide-react';
-import { cn, translateLocation } from '../../utils/helpers';
+import { cn } from '../../utils/helpers';
 import Button from './Button';
-import AvailabilityFilter from './AvailabilityFilter';
 import { FilterState } from '../../types';
-import { LOCATIONS } from '../../utils/constants';
+import { EGYPT_GOVERNORATES, PRICE_RANGES } from '../../utils/constants';
 import { SearchTab } from './SearchTabs';
-import { useEffect, useState } from 'react';
-import { FormInput, FormSelect } from './';
+import { FormInput } from './';
+import UnifiedSelect from './UnifiedSelect';
+import { TimePicker, ConfigProvider } from 'antd';
+import dayjs from 'dayjs';
+import arEG from 'antd/locale/ar_EG';
 
 interface FilterFormProps {
   filters: FilterState;
@@ -28,6 +31,10 @@ const FilterForm = ({
   className,
   activeTab = 'services'
 }: FilterFormProps) => {
+  const [categories, setCategories] = useState<string[]>([]);
+  const [categoriesLoading, setCategoriesLoading] = useState(true);
+  const [categoriesError, setCategoriesError] = useState<string | null>(null);
+
   const handleInputChange = (field: keyof FilterState, value: string | boolean | { days: string[]; timeSlots: string[] }) => {
     onFiltersChange({ ...filters, [field]: value });
   };
@@ -41,10 +48,6 @@ const FilterForm = ({
   };
 
   const hasActiveFilters = Object.values(filters).some(value => value !== '');
-
-  const [categories, setCategories] = useState<string[]>([]);
-  const [categoriesLoading, setCategoriesLoading] = useState(true);
-  const [categoriesError, setCategoriesError] = useState<string | null>(null);
 
   useEffect(() => {
     setCategoriesLoading(true);
@@ -99,15 +102,16 @@ const FilterForm = ({
             <label className="block text-sm font-medium text-text-primary mb-3">
               الفئة
             </label>
-            <FormSelect
+            <UnifiedSelect
               value={filters.category || ''}
-              onChange={(e) => handleInputChange('category', e.target.value)}
+              onChange={val => handleInputChange('category', val)}
               options={[
                 { value: '', label: 'جميع الفئات' },
                 ...categories.map((cat) => ({ value: cat, label: cat }))
               ]}
               disabled={categoriesLoading}
               placeholder="اختر الفئة"
+              size="md"
             />
             {categoriesError && <div className="text-red-600 text-sm text-right bg-red-50 p-2 rounded-lg border border-red-200 mt-2">{categoriesError}</div>}
           </div>
@@ -115,34 +119,39 @@ const FilterForm = ({
           {/* Location Filter */}
           <div>
             <label className="block text-sm font-medium text-text-primary mb-3">
-              الموقع
+              المحافظة
             </label>
-            <FormSelect
+            <UnifiedSelect
               value={filters.location}
-              onChange={(e) => handleInputChange('location', e.target.value)}
+              onChange={val => handleInputChange('location', val)}
               options={[
-                { value: '', label: 'جميع المواقع' },
-                ...LOCATIONS.map((location) => ({ value: location, label: translateLocation(location) }))
+                { value: '', label: 'جميع المحافظات' },
+                ...EGYPT_GOVERNORATES.map((gov) => ({ value: gov.id, label: gov.name }))
               ]}
-              placeholder="اختر الموقع"
+              placeholder="اختر المحافظة"
+              size="md"
+              isSearchable
+              searchPlaceholder="ابحث عن محافظة..."
             />
           </div>
 
           {/* Price Range Filter */}
           <div>
             <label className="block text-sm font-medium text-text-primary mb-3">
-              {activeTab === 'services' ? 'نطاق السعر' : 'نطاق الميزانية'}
+              حدود السعر
             </label>
-            <FormSelect
+            <UnifiedSelect
               value={filters.priceRange}
-              onChange={(e) => handleInputChange('priceRange', e.target.value)}
+              onChange={val => handleInputChange('priceRange', val)}
               options={[
-                { value: '', label: 'أي نطاق' },
-                { value: '0-50', label: '0 - 200 جنيه' },
-                { value: '50-100', label: '200 - 400 جنيه' },
-                { value: '100+', label: '400+ جنيه' }
+                { value: '', label: 'جميع الأسعار' },
+                ...Object.entries(PRICE_RANGES).map(([key, range]) => ({
+                  value: key.toLowerCase(),
+                  label: range.label
+                }))
               ]}
-              placeholder="اختر نطاق السعر"
+              placeholder="اختر حدود السعر"
+              size="md"
             />
           </div>
 
@@ -152,9 +161,9 @@ const FilterForm = ({
               <label className="block text-sm font-medium text-text-primary mb-3">
                 الحد الأدنى للتقييم
               </label>
-              <FormSelect
+              <UnifiedSelect
                 value={filters.rating}
-                onChange={(e) => handleInputChange('rating', e.target.value)}
+                onChange={val => handleInputChange('rating', val)}
                 options={[
                   { value: '', label: 'أي تقييم' },
                   { value: '4+', label: '4+ نجوم' },
@@ -162,6 +171,7 @@ const FilterForm = ({
                   { value: 'any', label: 'أي تقييم' }
                 ]}
                 placeholder="اختر التقييم"
+                size="md"
               />
             </div>
           )}
@@ -181,19 +191,98 @@ const FilterForm = ({
             </label>
           </div>
 
-          {/* Availability Filter */}
-          <AvailabilityFilter
-            selectedDays={filters.availability?.days || []}
-            selectedTimeSlots={filters.availability?.timeSlots || []}
-            onDaysChange={(days) => handleInputChange('availability', { 
-              days,
-              timeSlots: filters.availability?.timeSlots || []
-            })}
-            onTimeSlotsChange={(timeSlots) => handleInputChange('availability', { 
-              days: filters.availability?.days || [],
-              timeSlots
-            })}
-          />
+          {activeTab === 'services' && (
+            <>
+              {/* Working Days Filter (for providers) */}
+              <div>
+                <label className="block text-sm font-medium text-text-primary mb-3">
+                  أيام العمل
+                </label>
+                <div className="flex flex-wrap gap-2">
+                  {['saturday','sunday','monday','tuesday','wednesday','thursday','friday'].map(day => (
+                    <label
+                      key={day}
+                      className={
+                        `flex items-center gap-2 px-3 py-2 rounded-lg border-2 transition-colors cursor-pointer select-none
+                        ${filters.workingDays?.includes(day)
+                          ? 'bg-deep-teal/90 border-deep-teal text-white'
+                          : 'bg-white border-gray-300 text-deep-teal hover:bg-deep-teal/10'}
+                        text-base font-semibold`
+                      }
+                      style={{ minWidth: '90px' }}
+                    >
+                      <input
+                        type="checkbox"
+                        checked={filters.workingDays?.includes(day) || false}
+                        onChange={e => {
+                          const newDays = e.target.checked
+                            ? [...(filters.workingDays || []), day]
+                            : (filters.workingDays || []).filter(d => d !== day);
+                          onFiltersChange({ ...filters, workingDays: newDays });
+                        }}
+                        className="w-5 h-5 accent-[#2D5D4F] border-2 border-gray-400 rounded focus:ring-2 focus:ring-accent focus:ring-offset-2"
+                        style={{ accentColor: filters.workingDays?.includes(day) ? '#fff' : '#2D5D4F' }}
+                      />
+                      <span className="ml-1">
+                        {{
+                          saturday: 'السبت',
+                          sunday: 'الأحد',
+                          monday: 'الاثنين',
+                          tuesday: 'الثلاثاء',
+                          wednesday: 'الأربعاء',
+                          thursday: 'الخميس',
+                          friday: 'الجمعة'
+                        }[day]}
+                      </span>
+                    </label>
+                  ))}
+                </div>
+              </div>
+              {/* Work Time Range Filter (for providers) */}
+              <div>
+                <label className="block text-sm font-medium text-text-primary mb-3">
+                  وقت العمل
+                </label>
+                <ConfigProvider locale={arEG}>
+                  <TimePicker.RangePicker
+                    format={value => {
+                      if (!value) return '';
+                      const hour = value.hour();
+                      const minute = value.minute().toString().padStart(2, '0');
+                      const isAM = hour < 12;
+                      let displayHour = hour % 12;
+                      if (displayHour === 0) displayHour = 12;
+                      return `${displayHour}:${minute} ${isAM ? 'ص' : 'م'}`;
+                    }}
+                    use12Hours
+                    showSecond={false}
+                    value={filters.timeRange && filters.timeRange.length === 2 ? [dayjs(filters.timeRange[0], 'HH:mm'), dayjs(filters.timeRange[1], 'HH:mm')] : null}
+                    onChange={val => {
+                      onFiltersChange({
+                        ...filters,
+                        timeRange: val && val.length === 2 && val[0] && val[1]
+                          ? [val[0].format('HH:mm'), val[1].format('HH:mm')]
+                          : undefined
+                      });
+                    }}
+                    allowClear
+                    minuteStep={5}
+                    size="large"
+                    className="bg-white border-2 border-gray-300 rounded-lg py-2 pr-3 pl-3 focus:ring-2 focus:ring-accent focus:border-accent text-right text-black custom-timepicker-contrast"
+                    classNames={{ popup: { root: 'rtl' } }}
+                    style={{ direction: 'rtl' }}
+                    placeholder={["من", "إلى"]}
+                  />
+                </ConfigProvider>
+              </div>
+            </>
+          )}
+          {activeTab === 'requests' && (
+            <>
+              {/* Only show filters relevant to seekers here (e.g., category, location, price, etc.) */}
+              {/* Remove working days and time range filters for seekers */}
+            </>
+          )}
         </div>
       </div>
     );
@@ -225,32 +314,37 @@ const FilterForm = ({
             />
           </div>
           
-          <FormSelect
+          <UnifiedSelect
             value={filters.location}
-            onChange={(e) => handleInputChange('location', e.target.value)}
+            onChange={val => handleInputChange('location', val)}
             options={[
-              { value: '', label: 'جميع المواقع' },
-              ...LOCATIONS.map((location) => ({ value: location, label: translateLocation(location) }))
+              { value: '', label: 'جميع المحافظات' },
+              ...EGYPT_GOVERNORATES.map((gov) => ({ value: gov.id, label: gov.name }))
             ]}
-            placeholder="اختر الموقع"
+            placeholder="اختر المحافظة"
+            size="md"
+            isSearchable
+            searchPlaceholder="ابحث عن محافظة..."
           />
           
-          <FormSelect
+          <UnifiedSelect
             value={filters.priceRange}
-            onChange={(e) => handleInputChange('priceRange', e.target.value)}
+            onChange={val => handleInputChange('priceRange', val)}
             options={[
-              { value: '', label: 'أي نطاق' },
-              { value: '0-50', label: '$0 - $50' },
-              { value: '50-100', label: '$50 - $100' },
-              { value: '100+', label: '$100+' }
+              { value: '', label: 'جميع الأسعار' },
+              ...Object.entries(PRICE_RANGES).map(([key, range]) => ({
+                value: key.toLowerCase(),
+                label: range.label
+              }))
             ]}
-            placeholder="اختر نطاق السعر"
+            placeholder="حدود السعر"
+            size="md"
           />
           
           <div className="flex items-center justify-between gap-2">
-            <FormSelect
+            <UnifiedSelect
               value={filters.rating}
-              onChange={(e) => handleInputChange('rating', e.target.value)}
+              onChange={val => handleInputChange('rating', val)}
               options={[
                 { value: '', label: 'أي تقييم' },
                 { value: '4+', label: '4+ نجوم' },
@@ -258,6 +352,7 @@ const FilterForm = ({
                 { value: 'any', label: 'أي تقييم' }
               ]}
               placeholder="اختر التقييم"
+              size="md"
             />
             <Button
               type="button"

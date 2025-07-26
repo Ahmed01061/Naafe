@@ -1,5 +1,6 @@
 import aiConfig from '../config/ai.js';
 import { logger } from '../middlewares/logging.middleware.js';
+import Category from '../models/Category.js';
 
 class AIService {
   constructor() {
@@ -77,14 +78,27 @@ class AIService {
     }
 
     try {
-      const categoryArabic = this.config.formAssistance.categories[category] || category;
+      // Fetch latest categories from DB
+      const allCategories = await Category.find({ isActive: true });
+      const normalizedCategory = (category || '').trim().toLowerCase();
+      const categoryObj = allCategories.find(
+        cat => cat.name.trim().toLowerCase() === normalizedCategory
+      );
+      const categoryArabic = categoryObj ? categoryObj.name : category;
+      // Optionally, you can use cat.description or another field for Arabic if available
       
       let prompt;
       if (formType === 'service') {
         // Provider-focused prompt for service posting (Arabic, explicit)
-        prompt = `أنت مساعد ذكي تساعد مقدمي الخدمات على كتابة إعلانات احترافية وجذابة على منصة نافِع.
+        prompt = `
+أنت مساعد ذكي تساعد مقدمي الخدمات على كتابة إعلانات احترافية وجذابة على منصة نافِع.
 
-دور المستخدم: مقدم خدمة (يعرض خدماته)
+- استخدم دائمًا اللغة العربية الفصحى الحديثة (بدون لهجات).
+- الأسلوب يجب أن يكون واثقًا واحترافيًا، بصيغة "أقدم..." أو "أقوم..." وليس "أحتاج...".
+- إذا كان مدخل المستخدم أو الوصف قصيرًا أو غير كافٍ، اطلب منه توضيح التفاصيل أو قدم له قالبًا ليكمله.
+- استخرج كلمات مفتاحية مناسبة ومحسّنة للبحث.
+- في نهاية الاقتراح، قدم نصيحة عملية قصيرة لتحسين فرص ظهور الخدمة أو جذب العملاء (مثال: "إضافة صور عالية الجودة تزيد من فرص التوظيف بنسبة 30%.").
+
 الفئة: ${category} (${categoryArabic})
 
 مدخل المستخدم الحالي:
@@ -97,17 +111,10 @@ ${JSON.stringify(currentFields, null, 2)}
 1. اقترح عنوانًا محسّنًا وجذابًا يبرز مهارات مقدم الخدمة أو نقاط تميّزه.
 2. اقترح وصفًا احترافيًا يوضح نطاق الخدمة، مدة التنفيذ، الضمانات، ولماذا يجب اختيار هذا المقدم.
 3. اقترح كلمات مفتاحية مناسبة تساعد في ظهور الخدمة في نتائج البحث.
-4. قدّم نصائح مفيدة لمقدم الخدمة لتحسين إعلانه.
+4. إذا كان مدخل المستخدم غير كافٍ، اطلب منه إضافة تفاصيل أو قدم له قالبًا ليكمله.
+5. قدم نصيحة عملية قصيرة لتحسين الإعلان.
 
-❗️ مهم جدًا: يجب أن يكون الأسلوب بصيغة مقدم الخدمة (مثال: "أقدم خدمات..." أو "أقوم بإصلاح...") وليس بصيغة طالب الخدمة (❌ "أحتاج إلى..." أو "أريد من يصلح...").
-
-أمثلة:
-- ❌ "أحتاج سباك لإصلاح تسريب في الحمام"
-- ✅ "أقدم خدمات السباكة وإصلاح التسريبات باحترافية، مع ضمان الجودة وسرعة التنفيذ"
-- ❌ "أبحث عن كهربائي لتركيب لمبات"
-- ✅ "أقوم بتركيب جميع أنواع الإضاءة والأعمال الكهربائية للمنازل والمكاتب"
-
-يجب أن يكون الرد النهائي بتنسيق JSON فقط، دون أي نص إضافي.
+أعد فقط كائن JSON النهائي، دون أي شرح أو نص خارجي.
 
 الصيغة المطلوبة:
 {
@@ -127,41 +134,49 @@ ${JSON.stringify(currentFields, null, 2)}
 تذكير: أعد فقط كائن JSON النهائي، دون أي شرح أو نص خارجي.`;
       } else {
         // Seeker-focused prompt for service request
-        prompt = `You are an AI assistant helping service seekers write clear, detailed, and effective service requests for the Naafe marketplace platform.
+        prompt = `
+أنت مساعد ذكي تساعد الباحثين عن الخدمات على كتابة طلبات واضحة ومفصلة وفعالة على منصة نافِع.
 
-Form Type: Service Request (Seeker)
-Category: ${category} (${categoryArabic})
+- استخدم دائمًا اللغة العربية الفصحى الحديثة (بدون لهجات).
+- الأسلوب يجب أن يكون واضحًا ومحددًا، بصيغة "أحتاج..." أو "أرغب في...".
+- إذا كان مدخل المستخدم أو الوصف قصيرًا أو غير كافٍ، اطلب منه توضيح التفاصيل أو قدم له قالبًا ليكمله.
+- استخرج كلمات مفتاحية مناسبة ومحسّنة للبحث.
+- لا تذكر الميزانية أو السعر أو التكلفة في الوصف. الميزانية لها حقل منفصل في النموذج.
+- في نهاية الاقتراح، قدم نصيحة عملية قصيرة لتحسين فرص ظهور الطلب أو جذب مقدمي الخدمة (مثال: "كلما زادت التفاصيل زادت فرص الحصول على عروض مناسبة.").
 
-User's Current Input:
+الفئة: ${category} (${categoryArabic})
+
+مدخل المستخدم الحالي:
 "${userInput}"
 
-Current Form Fields:
+حقول النموذج الحالية:
 ${JSON.stringify(currentFields, null, 2)}
 
-Requirements:
-1. Suggest an improved, clear title that summarizes the need or problem.
-2. Suggest a detailed description that explains the context, urgency, location, and any specific requirements.
-3. Suggest appropriate keywords to help match with the right providers.
-4. Write helpful text for the seeker to improve their request.
+التعليمات:
+1. اقترح عنوانًا واضحًا يلخص الحاجة أو المشكلة.
+2. اقترح وصفًا مفصلًا يوضح السياق، درجة الإلحاح، الموقع، وأي متطلبات خاصة.
+3. اقترح كلمات مفتاحية مناسبة تساعد في مطابقة الطلب مع مقدمي الخدمة المناسبين.
+4. إذا كان مدخل المستخدم غير كافٍ، اطلب منه إضافة تفاصيل أو قدم له قالبًا ليكمله.
+5. قدم نصيحة عملية قصيرة لتحسين الطلب.
 
-CRITICAL: You must respond with ONLY valid JSON. No other text before or after the JSON.
+أعد فقط كائن JSON النهائي، دون أي شرح أو نص خارجي.
 
-Expected JSON format:
+الصيغة المطلوبة:
 {
   "suggestions": [
-    { "type": "title", "content": "Improved title here", "reasoning": "Reason for suggestion" },
-    { "type": "description", "content": "Improved description here", "reasoning": "Reason for suggestion" },
-    { "type": "keywords", "content": "keyword1, keyword2, keyword3", "reasoning": "Reason for suggestion" }
+    { "type": "title", "content": "عنوان محسّن هنا", "reasoning": "سبب الاقتراح" },
+    { "type": "description", "content": "وصف محسّن هنا", "reasoning": "سبب الاقتراح" },
+    { "type": "keywords", "content": "كلمة1, كلمة2, كلمة3", "reasoning": "سبب الاقتراح" }
   ],
   "enhancedContent": {
-    "title": "Best title suggestion",
-    "description": "Best description suggestion",
-    "keywords": "best, keywords, here"
+    "title": "أفضل عنوان مقترح",
+    "description": "أفضل وصف مقترح",
+    "keywords": "الأفضل, كلمات, هنا"
   },
-  "helpfulText": "Helpful advice for the seeker"
+  "helpfulText": "نصيحة مفيدة للباحث عن الخدمة"
 }
 
-Remember: Return ONLY the JSON object, no additional text or explanations.`;
+تذكير: أعد فقط كائن JSON النهائي، دون أي شرح أو نص خارجي.`;
       }
 
       const response = await this.makeRequest([
@@ -183,26 +198,26 @@ Remember: Return ONLY the JSON object, no additional text or explanations.`;
           suggestions: [
             {
               type: 'title',
-              content: 'إصلاح تسرب المياه في الحمام - سباك محترف',
-              reasoning: 'عنوان واضح ومحدد يوضح المشكلة والحل'
+              content: userInput,
+              reasoning: 'اقتراح افتراضي بناءً على مدخل المستخدم'
             },
             {
               type: 'description',
-              content: 'أحتاج سباك محترف وموثوق لإصلاح تسرب المياه في الحمام. المشكلة في صنبور المياه وتحتاج إصلاح فوري. أبحث عن شخص ذو خبرة في إصلاح السباكة المنزلية مع ضمان الجودة.',
-              reasoning: 'وصف مفصل يوضح المشكلة والمتطلبات والضمانات'
+              content: 'يرجى كتابة وصف مفصل للخدمة أو الطلب هنا.',
+              reasoning: 'وصف افتراضي لعدم توفر اقتراح من الذكاء الاصطناعي'
             },
             {
               type: 'keywords',
-              content: 'سباكة, إصلاح, تسرب, مياه, حمام, صنبور, سباك محترف',
-              reasoning: 'كلمات مفتاحية تغطي جميع جوانب الخدمة المطلوبة'
+              content: '',
+              reasoning: 'يرجى إضافة كلمات مفتاحية مناسبة'
             }
           ],
           enhancedContent: {
-            title: 'إصلاح تسرب المياه في الحمام - سباك محترف',
-            description: 'أحتاج سباك محترف وموثوق لإصلاح تسرب المياه في الحمام. المشكلة في صنبور المياه وتحتاج إصلاح فوري. أبحث عن شخص ذو خبرة في إصلاح السباكة المنزلية مع ضمان الجودة والالتزام بالمواعيد.',
-            keywords: 'سباكة, إصلاح, تسرب, مياه, حمام, صنبور, سباك محترف'
+            title: userInput,
+            description: 'يرجى كتابة وصف مفصل للخدمة أو الطلب هنا.',
+            keywords: ''
           },
-          helpfulText: 'تم تحسين المحتوى ليكون أكثر وضوحاً وجاذبية للعملاء المحتملين. تأكد من ذكر التفاصيل المهمة مثل نوع المشكلة والموقع والضمانات المطلوبة.'
+          helpfulText: 'لم يتمكن الذكاء الاصطناعي من اقتراح محتوى محسّن. تم استخدام مدخل المستخدم كعنوان.'
         };
         return fallbackResponse;
       }
@@ -243,15 +258,23 @@ Remember: Return ONLY the JSON object, no additional text or explanations.`;
    * AI Pricing Guidance
    * Provides intelligent pricing recommendations
    */
-  async providePricingGuidance(category, serviceType, location, userBudget = null, marketData = {}, skills = []) {
+  async providePricingGuidance(category, serviceType, location, userBudget = null, marketData = {}, skills = [], rating = null) {
     if (!this.config.services.pricingGuidance) {
       return { recommendation: null, analysis: null };
     }
 
     try {
-      const categoryArabic = this.config.formAssistance.categories[category] || category;
+      // Fetch latest categories from DB
+      const allCategories = await Category.find({ isActive: true });
+      const normalizedCategory = (category || '').trim().toLowerCase();
+      const categoryObj = allCategories.find(
+        cat => cat.name.trim().toLowerCase() === normalizedCategory
+      );
+      const categoryArabic = categoryObj ? categoryObj.name : category;
+      // Optionally, you can use cat.description or another field for Arabic if available
       const priceRange = this.config.pricingGuidance.priceRanges[category];
       const skillsText = Array.isArray(skills) && skills.length > 0 ? `\nمهارات مقدم الخدمة:\n- ${skills.join('\n- ')}` : '';
+      const ratingText = rating !== null && rating !== undefined ? `\nتقييم مقدم الخدمة: ${rating} من 5` : '';
       const prompt = `
         أنت خبير في تسعير الخدمات في مصر. ساعد المستخدم في تحديد سعر عادل ومناسب بناءً على مهارات مقدم الخدمة والسوق.
 
@@ -259,6 +282,7 @@ Remember: Return ONLY the JSON object, no additional text or explanations.`;
         الفئة: ${category} (${categoryArabic})
         الموقع: ${location}
         ${skillsText}
+        ${ratingText}
         
         نطاق الأسعار المرجعي للفئة:
         - الحد الأدنى: ${priceRange?.min || 0} جنيه
@@ -271,17 +295,26 @@ Remember: Return ONLY the JSON object, no additional text or explanations.`;
         ${JSON.stringify(marketData, null, 2)}
         
         المطلوب:
-        1. إذا كانت الميزانية المدخلة من المستخدم أقل بكثير أو أعلى بكثير من نطاق السوق، حذّر المستخدم وأخبره أن الميزانية غير واقعية واقترح نطاقاً مناسباً.
-        2. إذا لم يحدد المستخدم ميزانية، اقترح نطاق سعر مناسب بناءً على السوق ومهارات مقدم الخدمة.
-        3. اقترح دائماً نطاق سعر (حد أدنى وحد أقصى) بالجنيه المصري فقط.
-        4. اشرح الأسباب.
-        5. اعطِ نصائح للتسعير.
+        1. قبل اقتراح أي سعر، تحقق أولاً من أن مهارات مقدم الخدمة مرتبطة فعلاً بالفئة/الخدمة المختارة.
+        2. إذا لم تكن المهارات مرتبطة أو غير كافية، وضّح ذلك بوضوح في التحليل، وبيّن أن مقدم الخدمة قد يحتاج لإضافة مهارات أكثر ارتباطاً أو أن السعر المقترح سيكون أقل من المتوسط.
+        3. إذا كانت المهارات غير مرتبطة، لا تبرر سعراً مرتفعاً، بل حذر المستخدم من ذلك.
+        4. إذا كانت الميزانية المدخلة من المستخدم أقل بكثير أو أعلى بكثير من نطاق السوق، حذّر المستخدم وأخبره أن الميزانية غير واقعية واقترح نطاقاً مناسباً.
+        5. إذا لم يحدد المستخدم ميزانية، اقترح نطاق سعر مناسب بناءً على السوق ومهارات مقدم الخدمة.
+        6. اقترح دائماً نطاق سعر (حد أدنى وحد أقصى) بالجنيه المصري فقط.
+        7. اشرح الأسباب.
+        8. اعطِ نصائح للتسعير.
 
-        ❗️ مهم جدًا: يجب أن تكون جميع الأسعار بالجنيه المصري فقط (جنيه)، ولا تستخدم أي عملة أخرى مثل الريال أو الدولار.
+        ⚠️ مهم جداً: يجب أن تكون جميع الأسعار بالجنيه المصري فقط (جنيه)، ولا تستخدم أي عملة أخرى مثل الريال أو الدولار.
+        
+        تعليمات إضافية حول التقييم:
+        - إذا كان تقييم مقدم الخدمة مرتفعاً (4.5 أو أكثر)، يمكنك اقتراح أسعار أعلى من المتوسط وتوضيح أن التقييم العالي يبرر ذلك.
+        - إذا كان التقييم متوسطاً (بين 3 و4.5)، اقترح أسعاراً قريبة من متوسط السوق مع ذكر أن التقييم جيد لكن ليس الأعلى.
+        - إذا كان التقييم منخفضاً (أقل من 3)، اقترح أسعاراً تنافسية لجذب العملاء ووضح أن التقييم المنخفض يتطلب تقديم سعر مغرٍ.
+        - اشرح دائماً كيف يؤثر التقييم على التسعير في قسم الأسباب.
+
         أمثلة:
-        - ❌ "500 ريال"
-        - ❌ "100 دولار"
-        - ✅ "500 جنيه"
+        - تقييم 4.8: "يمكنك رفع سعرك لأن تقييمك مرتفع ويعكس ثقة العملاء."
+        - تقييم 2.5: "يفضل تقديم سعر أقل لجذب العملاء وتحسين تقييمك مستقبلاً."
 
         أعد النتيجة بتنسيق JSON فقط، دون أي نص خارجي:
         {
@@ -289,13 +322,13 @@ Remember: Return ONLY the JSON object, no additional text or explanations.`;
             "suggestedMin": 500,
             "suggestedMax": 800,
             "confidence": 0.9,
-            "reasoning": "لأن مقدم الخدمة لديه خبرة في ... ويمتلك مهارات ..."
+            "reasoning": "لأن مقدم الخدمة لديه خبرة في ... ويمتلك مهارات ... وتقييمه مرتفع."
           },
           "analysis": {
             "isReasonable": true,
             "marketPosition": "average",
-            "factors": ["مهارات مقدم الخدمة", "الأسعار في السوق"],
-            "tips": ["حدد نطاق سعرك بوضوح", "اذكر خبراتك لرفع السعر"]
+            "factors": ["مهارات مقدم الخدمة", "الأسعار في السوق", "تقييم مقدم الخدمة"],
+            "tips": ["حدد نطاق سعرك بوضوح", "اذكر خبراتك وتقييمك لرفع السعر"]
           },
           "warning": "الميزانية التي أدخلتها غير واقعية مقارنة بالسوق. يرجى مراجعة الأسعار المقترحة."
         }

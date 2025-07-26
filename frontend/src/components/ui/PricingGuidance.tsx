@@ -1,5 +1,5 @@
 import React, { useState, useCallback } from 'react';
-import { DollarSign, TrendingUp, TrendingDown, AlertTriangle, CheckCircle } from 'lucide-react';
+import { DollarSign, AlertTriangle, CheckCircle } from 'lucide-react';
 import { useAuth } from '../../contexts/AuthContext';
 import Button from './Button';
 import BaseCard from './BaseCard';
@@ -11,6 +11,7 @@ interface PricingGuidanceProps {
   userBudget: { min: number; max: number } | null;
   onPricingApply: (min: number, max: number) => void;
   skills?: string[];
+  rating?: number; // <-- Add rating prop
   className?: string;
 }
 
@@ -41,6 +42,7 @@ const PricingGuidance: React.FC<PricingGuidanceProps> = ({
   userBudget,
   onPricingApply,
   skills = [],
+  rating, // <-- Add rating prop
   className = ''
 }) => {
   const { accessToken } = useAuth();
@@ -70,6 +72,7 @@ const PricingGuidance: React.FC<PricingGuidanceProps> = ({
           location,
           userBudget,
           skills,
+          rating, // <-- Pass rating to backend
         })
       });
 
@@ -85,7 +88,7 @@ const PricingGuidance: React.FC<PricingGuidanceProps> = ({
     } finally {
       setIsLoading(false);
     }
-  }, [category, formType, location, userBudget, accessToken, skills]);
+  }, [category, formType, location, userBudget, accessToken, skills, rating]);
 
   const handleApplyRecommendation = () => {
     if (guidance?.recommendation) {
@@ -96,34 +99,35 @@ const PricingGuidance: React.FC<PricingGuidanceProps> = ({
     }
   };
 
-  const getMarketPositionIcon = (position: string) => {
-    switch (position) {
-      case 'low':
-        return <TrendingDown className="w-4 h-4 text-green-600" />;
-      case 'high':
-        return <TrendingUp className="w-4 h-4 text-red-600" />;
-      default:
-        return <CheckCircle className="w-4 h-4 text-blue-600" />;
-    }
-  };
-
-  const getMarketPositionText = (position: string) => {
-    switch (position) {
-      case 'low':
-        return 'منخفض - سعر تنافسي';
-      case 'high':
-        return 'مرتفع - سعر مميز';
-      default:
-        return 'متوسط - سعر معقول';
-    }
-  };
-
   return (
-    <BaseCard className={`p-6 border-l-4 border-[#2D5D4F] ${className}`}>
+    <BaseCard className={`p-6 border-l-4 border-[#2D5D4F] bg-gradient-to-br from-white via-orange-50 to-teal-50 shadow-md ${className}`}>
+      {/* Instructions */}
+      <div className="mb-4 p-3 rounded-lg bg-orange-50 border border-orange-200 text-orange-900 text-sm text-right">
+        <span className="font-semibold">تعليمات:</span> اختر الفئة أولاً، وأضف ميزانيتك المفضلة، وحدد موقعك لتحصل على توصية دقيقة من الذكاء الاصطناعي.
+      </div>
       <div className="flex items-center gap-2 mb-4">
         <DollarSign className="w-5 h-5 text-[#2D5D4F]" />
         <h3 className="text-lg font-bold text-[#0e1b18]">التوجيه الذكي للتسعير</h3>
       </div>
+
+      {/* Provider Rating Display */}
+      {typeof rating === 'number' && (
+        <div className="mb-4 flex items-center gap-2 justify-end">
+          <span className="text-sm text-[#0e1b18] font-semibold">تقييمك الحالي:</span>
+          <span className="text-base font-bold text-[#F5A623]">{rating.toFixed(2)} / 5</span>
+          <span className="text-yellow-400">{'★'.repeat(Math.round(rating))}{'☆'.repeat(5 - Math.round(rating))}</span>
+        </div>
+      )}
+
+      {/* Above the main content, display skills if provided: */}
+      {skills && skills.length > 0 && (
+        <div className="mb-4 flex flex-wrap gap-2 justify-end">
+          <span className="text-sm font-semibold text-[#0e1b18]">مهاراتك:</span>
+          {skills.map((skill, idx) => (
+            <span key={idx} className="bg-[#F5A623]/10 text-[#F5A623] px-2 py-1 rounded-full text-xs font-cairo border border-[#F5A623]/30">{skill}</span>
+          ))}
+        </div>
+      )}
 
       <div className="space-y-4">
         {/* Current Budget Display */}
@@ -145,13 +149,15 @@ const PricingGuidance: React.FC<PricingGuidanceProps> = ({
           size="sm"
           className="w-full"
         >
-          <DollarSign className="w-4 h-4 ml-2" />
-          احصل على توجيه التسعير
+          <div className="flex items-center justify-center gap-2">
+            <DollarSign className="w-4 h-4" />
+            <span>احصل على توجيه التسعير</span>
+          </div>
         </Button>
         
         {/* Category Requirement Notice */}
         {(!category || category.trim() === '') && (
-          <div className="text-xs text-gray-500 text-right">
+          <div className="text-sm text-gray-600 text-right">
             * يجب اختيار الفئة أولاً لاستخدام توجيه التسعير
           </div>
         )}
@@ -224,7 +230,7 @@ const PricingGuidance: React.FC<PricingGuidanceProps> = ({
             {/* Analysis */}
             {guidance.analysis && (
               <div className="space-y-3">
-                {/* Reasonableness Check */}
+                {/* Combined Reasonableness & Market Position */}
                 <div className={`p-3 rounded-lg border ${
                   guidance.analysis.isReasonable 
                     ? 'bg-green-50 border-green-200' 
@@ -239,16 +245,15 @@ const PricingGuidance: React.FC<PricingGuidanceProps> = ({
                     <span className={`font-semibold text-sm ${
                       guidance.analysis.isReasonable ? 'text-green-800' : 'text-yellow-800'
                     }`}>
-                      {guidance.analysis.isReasonable ? 'السعر معقول' : 'السعر يحتاج مراجعة'}
-                    </span>
-                  </div>
-                </div>
-                {/* Market Position */}
-                <div className="p-3 bg-gray-50 border border-gray-200 rounded-lg">
-                  <div className="flex items-center gap-2 mb-2">
-                    {getMarketPositionIcon(guidance.analysis.marketPosition)}
-                    <span className="font-semibold text-sm text-[#0e1b18]">
-                      {getMarketPositionText(guidance.analysis.marketPosition)}
+                      {guidance.analysis.isReasonable
+                        ? guidance.analysis.marketPosition === 'average'
+                          ? 'السعر معقول - متوسط السوق'
+                          : guidance.analysis.marketPosition === 'low'
+                            ? 'السعر معقول (منخفض - سعر تنافسي)'
+                            : guidance.analysis.marketPosition === 'high'
+                              ? 'السعر معقول (مرتفع - سعر مميز)'
+                              : 'السعر معقول'
+                        : 'السعر يحتاج مراجعة'}
                     </span>
                   </div>
                 </div>

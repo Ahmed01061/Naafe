@@ -42,11 +42,6 @@ const serviceListingSchema = new Schema({
       required: true
     }
   },
-  deliveryTimeDays: {
-    type: Number,
-    default: 1,
-    min: [1, 'Delivery time must be at least 1 day']
-  },
   attachments: [{
     url: { type: String, required: true },
     filename: { type: String, required: true },
@@ -54,13 +49,12 @@ const serviceListingSchema = new Schema({
     fileSize: Number
   }],
   location: {
-    address: String,
     government: String,
-    city: String,
-    street: String,
-    apartmentNumber: String,
-    additionalInformation: String
+    city: String
   },
+  workingDays: [String],
+  startTime: String,
+  endTime: String,
   status: {
     type: String,
     enum: ['active', 'paused', 'archived'],

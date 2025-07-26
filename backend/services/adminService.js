@@ -106,27 +106,27 @@ class AdminService {
    * Get service categories data for charts
    */
   async getServiceCategoriesData() {
+    // Fetch all categories (active only)
+    const allCategories = await Category.find({ isActive: true }, 'name');
+    // Aggregate counts by category string from ServiceListing
     const categoriesData = await ServiceListing.aggregate([
-      {
-        $match: { status: 'active' }
-      },
-      {
-        $group: {
-          _id: '$category',
-          count: { $sum: 1 }
-        }
-      },
-      {
-        $sort: { count: -1 }
-      },
-      {
-        $limit: 6
-      }
+      { $match: { status: 'active' } },
+      { $group: { _id: '$category', count: { $sum: 1 } } }
     ]);
-
+    // Map: category name => count
+    const countMap = new Map(categoriesData.map(cat => [cat._id, cat.count]));
+    // Build result for all categories
+    let result = allCategories.map(cat => ({
+      name: cat.name,
+      count: countMap.get(cat.name) || 0
+    }));
+    // Sort by count descending, then name
+    result = result.sort((a, b) => b.count - a.count || a.name.localeCompare(b.name));
+    // Limit to top 6
+    result = result.slice(0, 6);
     return {
-      labels: categoriesData.map(cat => cat._id),
-      data: categoriesData.map(cat => cat.count)
+      labels: result.map(cat => cat.name),
+      data: result.map(cat => cat.count)
     };
   }
 

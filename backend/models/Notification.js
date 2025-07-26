@@ -19,7 +19,12 @@ const notificationSchema = new Schema({
       'job_completed',
       'reminder',
       'system',
-      'custom'
+      'custom',
+      'agreement_reached',
+      'payment_escrowed',
+      'payment_released',
+      'cancellation_requested',
+      'service_cancelled'
     ],
     default: 'custom'
   },

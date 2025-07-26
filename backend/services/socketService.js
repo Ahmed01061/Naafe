@@ -200,11 +200,9 @@ class SocketService {
 
     socket.emit('message-sent', messageData);
 
-    // Emit to receiver if online
-    const receiverSocketId = this.connectedUsers.get(receiverId);
-    if (receiverSocketId) {
-      this.io.to(receiverSocketId).emit('receive-message', messageData);
-    }
+    // Emit to conversation room for real-time delivery (excluding sender)
+    // The sender will receive the message via message-sent event above
+    socket.to(`conversation:${conversationId}`).emit('receive-message', messageData);
 
     logger.info(`Message sent via socket: ${message._id} from ${senderId} to ${receiverId}`);
   }
@@ -293,6 +291,121 @@ class SocketService {
     const socketId = this.connectedUsers.get(userId);
     if (socketId) {
       this.io.to(socketId).emit(event, data);
+    }
+  }
+
+  /**
+   * Emit to multiple users
+   */
+  emitToUsers(userIds, event, data) {
+    userIds.forEach(userId => {
+      this.emitToUser(userId, event, data);
+    });
+  }
+
+  /**
+   * Send payment notification to users
+   */
+  async sendPaymentNotification(offerId, paymentId, seekerId, providerId) {
+    try {
+      // Create notification for provider
+      const notification = new Notification({
+        userId: providerId,
+        type: 'payment_completed',
+        message: 'تم إيداع الضمان للخدمة',
+        relatedOfferId: offerId,
+        relatedPaymentId: paymentId,
+        isRead: false
+      });
+      await notification.save();
+      
+      // Emit to both users
+      this.emitToUsers([seekerId, providerId], 'payment:completed', {
+        offerId,
+        paymentId,
+        timestamp: new Date()
+      });
+      
+      // Emit notification to provider
+      this.emitToUser(providerId, 'notify:paymentCompleted', {
+        notification: {
+          _id: notification._id,
+          type: notification.type,
+          message: notification.message,
+          relatedOfferId: notification.relatedOfferId,
+          relatedPaymentId: notification.relatedPaymentId,
+          isRead: notification.isRead,
+          createdAt: notification.createdAt
+        }
+      });
+      
+      logger.info(`Payment notification sent for offer: ${offerId}, payment: ${paymentId}`);
+    } catch (error) {
+      logger.error('Error sending payment notification:', error);
+    }
+  }
+
+  /**
+   * Send service completion notification to users
+   */
+  async sendServiceCompletionNotification(offerId, paymentId, seekerId, providerId) {
+    try {
+      // Create notification for both users
+      const providerNotification = new Notification({
+        userId: providerId,
+        type: 'service_completed',
+        message: 'تم اكتمال الخدمة وتحرير المبلغ',
+        relatedOfferId: offerId,
+        relatedPaymentId: paymentId,
+        isRead: false
+      });
+      await providerNotification.save();
+      
+      const seekerNotification = new Notification({
+        userId: seekerId,
+        type: 'service_completed',
+        message: 'تم اكتمال الخدمة وتحرير المبلغ لمقدم الخدمة',
+        relatedOfferId: offerId,
+        relatedPaymentId: paymentId,
+        isRead: false
+      });
+      await seekerNotification.save();
+      
+      // Emit to both users
+      this.emitToUsers([seekerId, providerId], 'service:completed', {
+        offerId,
+        paymentId,
+        timestamp: new Date()
+      });
+      
+      // Emit notifications
+      this.emitToUser(providerId, 'notify:serviceCompleted', {
+        notification: {
+          _id: providerNotification._id,
+          type: providerNotification.type,
+          message: providerNotification.message,
+          relatedOfferId: providerNotification.relatedOfferId,
+          relatedPaymentId: providerNotification.relatedPaymentId,
+          isRead: providerNotification.isRead,
+          createdAt: providerNotification.createdAt
+        }
+      });
+      
+      this.emitToUser(seekerId, 'notify:serviceCompleted', {
+        notification: {
+          _id: seekerNotification._id,
+          type: seekerNotification.type,
+          message: seekerNotification.message,
+          relatedOfferId: seekerNotification.relatedOfferId,
+          relatedPaymentId: seekerNotification.relatedPaymentId,
+          isRead: seekerNotification.isRead,
+          createdAt: seekerNotification.createdAt
+        }
+      });
+      
+      logger.info(`Service completion notification sent for offer: ${offerId}, payment: ${paymentId}`);
+    } catch (error) {
+      logger.error('Error sending service completion notification:', error);
     }
   }
 

@@ -32,8 +32,8 @@ const seekerProfileSchema = new Schema({
   totalJobsPosted: { type: Number, default: 0 },
   rating: { type: Number, default: 0, min: 0, max: 5 },
   reviewCount: { type: Number, default: 0, min: 0 },
-  totalSpent: { type: Number, default: 0, min: 0 },
-  verification: { type: idVerificationSchema, default: undefined },
+  totalSpent: { type: Number, default: 0, min: 0 }
+  // Removed verification
 }, { _id: false });
 
 const providerProfileSchema = new Schema({
@@ -41,8 +41,11 @@ const providerProfileSchema = new Schema({
   reviewCount: { type: Number, default: 0, min: 0 },
   totalJobsCompleted: { type: Number, default: 0, min: 0 },
   totalEarnings: { type: Number, default: 0, min: 0 },
-  verification: { type: idVerificationSchema, default: undefined },
   skills: { type: [String], default: [] },
+  workingDays: { type: [String], default: [] }, // Added for availability
+  startTime: { type: String, default: '' },     // Added for availability
+  endTime: { type: String, default: '' }        // Added for availability
+  // Removed verification
 }, { _id: false });
 
 const subscriptionSchema = new Schema({
@@ -126,6 +129,16 @@ const userSchema = new Schema({
         default: false,
         description: 'Whether the user is top-rated (computed based on rating and job count)'
     },
+    isVerified: {
+        type: Boolean,
+        default: false
+    },
+    verification: { type: idVerificationSchema, default: undefined },
+    providerUpgradeStatus: {
+        type: String,
+        enum: ['none', 'pending', 'accepted', 'rejected'],
+        default: 'none'
+    },
     seekerProfile: { type: seekerProfileSchema, default: () => ({}) },
     providerProfile: { type: providerProfileSchema, default: () => ({}) },
     subscription: { type: subscriptionSchema, default: () => ({}) },
@@ -160,6 +173,10 @@ const userSchema = new Schema({
     settings: {
         type: Schema.Types.Mixed,
         default: {}
+    },
+    portfolio: {
+        type: [String],
+        default: []
     }
 }, {
     timestamps: true

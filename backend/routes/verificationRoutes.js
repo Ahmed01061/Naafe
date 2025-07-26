@@ -10,6 +10,7 @@ router.post('/upload', authenticateToken, verificationController.uploadDocuments
 router.get('/status', authenticateToken, verificationController.getVerificationStatus);
 
 // Admin routes (require admin role)
+router.get('/all', authenticateToken, requireRole(['admin']), verificationController.getAllVerifications);
 router.get('/pending', authenticateToken, requireRole(['admin']), verificationController.getPendingVerifications);
 router.post('/:userId/approve', authenticateToken, requireRole(['admin']), verificationController.approveVerification);
 router.post('/:userId/reject', authenticateToken, requireRole(['admin']), verificationController.rejectVerification);

@@ -9,6 +9,7 @@ import { useAuth } from '../../contexts/AuthContext';
 import Breadcrumb from '../components/UI/Breadcrumb';
 import SearchAndFilter from '../components/UI/SearchAndFilter';
 import Button from '../../components/ui/Button';
+import FormTextarea from '../../components/ui/FormTextarea';
 
 function uuidv4() {
   return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function(c) {
@@ -26,7 +27,7 @@ interface Verification {
   _id: string;
   user: {
     _id: string;
-    name: { first: string; last: string };
+    name: string;
     email: string;
     phone: string;
     roles: string[];
@@ -40,8 +41,11 @@ interface Verification {
   criminalRecordUrl?: string;
   criminalRecordIssuedAt?: string;
   submittedAt: string;
+  reviewedAt?: string;
+  reviewedBy?: string;
   attempts: number;
   auditTrail?: AuditTrailEntry[];
+  role?: string;
 }
 
 const AdminIdentityVerifications: React.FC = () => {
@@ -75,7 +79,7 @@ const AdminIdentityVerifications: React.FC = () => {
       params.append('page', page.toString());
       if (searchTerm) params.append('search', searchTerm);
       if (filterStatus && filterStatus !== 'all') params.append('status', filterStatus);
-      const res = await fetch(`/api/verification/pending?${params.toString()}`, {
+      const res = await fetch(`/api/verification/all?${params.toString()}`, {
         headers: { 'Authorization': `Bearer ${accessToken}` },
       });
       const data = await res.json();
@@ -161,39 +165,99 @@ const AdminIdentityVerifications: React.FC = () => {
   ];
 
   const columns = [
-    { key: 'name' as const, label: 'الاسم' },
-    { key: 'email' as const, label: 'البريد الإلكتروني' },
-    { key: 'phone' as const, label: 'رقم الهاتف' },
-    { key: 'attachments' as const, label: 'المرفقات' },
-    { key: 'status' as const, label: 'الحالة' },
-    { key: 'actions' as const, label: 'إجراءات' },
+    { 
+      key: 'name' as const, 
+      label: 'الاسم',
+      render: (value: any, item: any) => (
+        <span className="font-medium text-deep-teal">{item.user.name}</span>
+      )
+    },
+    { 
+      key: 'email' as const, 
+      label: 'البريد الإلكتروني',
+      render: (value: any, item: any) => (
+        <span className="text-deep-teal">{item.user.email}</span>
+      )
+    },
+    { 
+      key: 'phone' as const, 
+      label: 'رقم الهاتف',
+      render: (value: any, item: any) => (
+        <span className="text-deep-teal">{item.user.phone}</span>
+      )
+    },
+    { 
+      key: 'attachments' as const, 
+      label: 'المرفقات',
+      render: (value: any, item: any) => (
+        <div className="flex gap-2 items-center">
+          {item.idFrontUrl && <a href={item.idFrontUrl} target="_blank" rel="noopener noreferrer"><img src={item.idFrontUrl} alt="id front" className="w-8 h-8 rounded border hover:ring-2 hover:ring-bright-orange transition" title="بطاقة أمامية" /></a>}
+          {item.idBackUrl && <a href={item.idBackUrl} target="_blank" rel="noopener noreferrer"><img src={item.idBackUrl} alt="id back" className="w-8 h-8 rounded border hover:ring-2 hover:ring-bright-orange transition" title="بطاقة خلفية" /></a>}
+          {item.selfieUrl && <a href={item.selfieUrl} target="_blank" rel="noopener noreferrer"><img src={item.selfieUrl} alt="selfie" className="w-8 h-8 rounded border hover:ring-2 hover:ring-bright-orange transition" title="سيلفي" /></a>}
+          {item.criminalRecordUrl && <a href={item.criminalRecordUrl} target="_blank" rel="noopener noreferrer"><img src={item.criminalRecordUrl} alt="criminal record" className="w-8 h-8 rounded border hover:ring-2 hover:ring-bright-orange transition" title="فيش وتشبيه" /></a>}
+          {!item.idFrontUrl && !item.idBackUrl && !item.selfieUrl && !item.criminalRecordUrl && <span className="text-gray-400">-</span>}
+        </div>
+      )
+    },
+    { 
+      key: 'status' as const, 
+      label: 'الحالة',
+      render: (value: any, item: any) => (
+        <span className={item.status === 'pending' ? 'text-yellow-600' : item.status === 'approved' ? 'text-green-600' : 'text-red-600'}>
+          {item.status === 'pending' ? 'قيد المراجعة' : item.status === 'approved' ? 'تم التحقق' : 'مرفوض'}
+        </span>
+      )
+    },
+    { 
+      key: 'actions' as const, 
+      label: 'إجراءات',
+      render: (value: any, item: any) => {
+        if (item.status === 'pending') {
+          return (
+            <Button variant="primary" size="sm" onClick={() => { setSelected(item); setShowModal(true); }}>عرض</Button>
+          );
+        } else {
+          return (
+            <div className="text-xs text-gray-600">
+              <div>تمت المراجعة</div>
+              <div>{item.reviewedAt ? new Date(item.reviewedAt).toLocaleDateString('ar-EG') : ''}</div>
+            </div>
+          );
+        }
+      }
+    },
   ];
 
-  const rows = verifications.map(v => ({
-    name: <span className="font-medium text-deep-teal">{`${v.user.name.first} ${v.user.name.last}`}</span>,
-    email: <span className="text-deep-teal">{v.user.email}</span>,
-    phone: <span className="text-deep-teal">{v.user.phone}</span>,
-    attachments: (
-      <div className="flex gap-2 items-center">
-        {v.idFrontUrl && <a href={v.idFrontUrl} target="_blank" rel="noopener noreferrer"><img src={v.idFrontUrl} alt="id front" className="w-8 h-8 rounded border hover:ring-2 hover:ring-bright-orange transition" title="بطاقة أمامية" /></a>}
-        {v.idBackUrl && <a href={v.idBackUrl} target="_blank" rel="noopener noreferrer"><img src={v.idBackUrl} alt="id back" className="w-8 h-8 rounded border hover:ring-2 hover:ring-bright-orange transition" title="بطاقة خلفية" /></a>}
-        {v.selfieUrl && <a href={v.selfieUrl} target="_blank" rel="noopener noreferrer"><img src={v.selfieUrl} alt="selfie" className="w-8 h-8 rounded border hover:ring-2 hover:ring-bright-orange transition" title="سيلفي" /></a>}
-        {v.criminalRecordUrl && <a href={v.criminalRecordUrl} target="_blank" rel="noopener noreferrer"><img src={v.criminalRecordUrl} alt="criminal record" className="w-8 h-8 rounded border hover:ring-2 hover:ring-bright-orange transition" title="فيش وتشبيه" /></a>}
-        {!v.idFrontUrl && !v.idBackUrl && !v.selfieUrl && !v.criminalRecordUrl && <span className="text-gray-400">-</span>}
-      </div>
-    ),
-    status: <span className={v.status === 'pending' ? 'text-yellow-600' : v.status === 'approved' ? 'text-green-600' : 'text-red-600'}>{v.status === 'pending' ? 'قيد المراجعة' : v.status === 'approved' ? 'تم التحقق' : 'مرفوض'}</span>,
-    actions: (
-      <Button variant="primary" size="sm" onClick={() => { setSelected(v); setShowModal(true); }}>عرض</Button>
-    ),
-  }));
+  const rows = verifications.map(v => {
+    return {
+      _id: v._id,
+      name: v.user.name,
+      email: v.user.email,
+      phone: v.user.phone,
+      attachments: '',
+      status: v.status,
+      actions: '',
+      user: v.user,
+      idFrontUrl: v.idFrontUrl,
+      idBackUrl: v.idBackUrl,
+      selfieUrl: v.selfieUrl,
+      criminalRecordUrl: v.criminalRecordUrl,
+      criminalRecordIssuedAt: v.criminalRecordIssuedAt,
+      submittedAt: v.submittedAt,
+      reviewedAt: v.reviewedAt,
+      reviewedBy: v.reviewedBy,
+      attempts: v.attempts,
+      auditTrail: v.auditTrail,
+      role: v.role,
+    };
+  });
 
   return (
     <div className="container mx-auto py-8">
-      <Breadcrumb items={[{ label: 'التحقق من الهوية' }]} />
+      <Breadcrumb items={[{ label: 'سجل التحقق من الهوية' }]} />
       <div className="mb-8 flex flex-col gap-2">
-        <h1 className="text-3xl font-bold text-deep-teal">طلبات التحقق من الهوية</h1>
-        <p className="text-text-secondary text-base">إدارة ومراجعة طلبات التحقق من الهوية المرفوعة من المستخدمين.</p>
+        <h1 className="text-3xl font-bold text-deep-teal">سجل التحقق من الهوية</h1>
+        <p className="text-text-secondary text-base">إدارة ومراجعة جميع طلبات التحقق من الهوية (قيد المراجعة، تم التحقق، مرفوض).</p>
       </div>
       <div className="bg-white rounded-2xl shadow-md p-6 border border-deep-teal/10">
         <SearchAndFilter
@@ -243,8 +307,14 @@ const AdminIdentityVerifications: React.FC = () => {
               )}
             </div>
             <div className="mt-4">
-              <label className="block font-semibold mb-2">ملاحظات/سبب (إجباري عند الرفض)</label>
-              <textarea className="input input-bordered w-full" value={actionExplanation} onChange={e => setActionExplanation(e.target.value)} placeholder="سبب الإجراء" title="سبب الإجراء" />
+              <FormTextarea
+                label="ملاحظات/سبب (إجباري عند الرفض)"
+                value={actionExplanation}
+                onChange={e => setActionExplanation(e.target.value)}
+                placeholder="سبب الإجراء"
+                variant="admin"
+                required
+              />
             </div>
             <div className="flex gap-2 mt-4">
               <Button variant="success" onClick={handleApprove}>قبول</Button>

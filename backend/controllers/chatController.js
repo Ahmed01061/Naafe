@@ -1,5 +1,8 @@
 import chatService from '../services/chatService.js';
 import { logger } from '../middlewares/logging.middleware.js';
+import socketService from '../services/socketService.js';
+import Notification from '../models/Notification.js';
+import User from '../models/User.js';
 
 /**
  * Get user's conversations
@@ -242,6 +245,234 @@ export const getConversationById = async (req, res) => {
       error: {
         code: 'INTERNAL_ERROR',
         message: 'Failed to retrieve conversation'
+      },
+      timestamp: new Date().toISOString()
+    });
+  }
+}; 
+
+/**
+ * Create or get conversation by job request ID (for chat-first negotiation)
+ */
+export const createOrGetConversationByJobRequest = async (req, res) => {
+  try {
+    const { jobRequestId } = req.params;
+    const userId = req.user._id;
+    const userRoles = req.user.roles || [];
+    let { providerId } = req.body;
+
+    // If providerId is not provided, try to get from query
+    if (!providerId && req.query.providerId) {
+      providerId = req.query.providerId;
+    }
+
+    if (!providerId) {
+      return res.status(400).json({
+        success: false,
+        error: { code: 'PROVIDER_ID_REQUIRED', message: 'providerId is required' }
+      });
+    }
+
+    let seekerId, actualProviderId;
+    if (userRoles.includes('seeker')) {
+      seekerId = userId;
+      actualProviderId = providerId;
+    } else if (userRoles.includes('provider')) {
+      seekerId = providerId;
+      actualProviderId = userId;
+    } else {
+      return res.status(403).json({
+        success: false,
+        error: { code: 'FORBIDDEN', message: 'Only seekers or providers can start a conversation' }
+      });
+    }
+
+    const conversation = await chatService.getOrCreateConversation(jobRequestId, seekerId, actualProviderId);
+
+    res.status(200).json({
+      success: true,
+      data: conversation,
+      message: 'Conversation created or retrieved successfully'
+    });
+  } catch (error) {
+    logger.error('Error in createOrGetConversationByJobRequest controller:', error);
+    res.status(500).json({
+      success: false,
+      error: { code: 'INTERNAL_ERROR', message: 'Failed to create or get conversation' }
+    });
+  }
+}; 
+
+/**
+ * Send a message to a conversation
+ */
+export const sendMessage = async (req, res) => {
+  try {
+    const { conversationId } = req.params;
+    const { content, receiverId } = req.body;
+    const senderId = req.user._id;
+
+    if (!content || !receiverId) {
+      return res.status(400).json({
+        success: false,
+        error: { 
+          code: 'INVALID_REQUEST', 
+          message: 'Content and receiverId are required' 
+        },
+        timestamp: new Date().toISOString()
+      });
+    }
+
+    // Check if user can access this conversation
+    const canAccess = await chatService.canAccessConversation(conversationId, senderId);
+    if (!canAccess) {
+      return res.status(403).json({
+        success: false,
+        error: {
+          code: 'FORBIDDEN',
+          message: 'Access denied to this conversation'
+        },
+        timestamp: new Date().toISOString()
+      });
+    }
+
+    const message = await chatService.sendMessage(conversationId, senderId, receiverId, content);
+
+    // --- Real-time and notification logic ---
+    try {
+      // Create notification for receiver
+      const sender = await User.findById(senderId).select('name.first name.last');
+      const senderName = sender ? `${sender.name.first} ${sender.name.last}` : 'شخص ما';
+      const notification = new Notification({
+        userId: receiverId,
+        type: 'new_message',
+        message: `${senderName} أرسل لك رسالة جديدة`,
+        relatedChatId: conversationId,
+        isRead: false
+      });
+      await notification.save();
+      // Emit notification to receiver if online
+      socketService.emitToUser(receiverId, 'notify:newMessage', {
+        notification: {
+          _id: notification._id,
+          type: notification.type,
+          message: notification.message,
+          relatedChatId: notification.relatedChatId,
+          isRead: notification.isRead,
+          createdAt: notification.createdAt
+        }
+      });
+    } catch (err) {
+      logger.error('Error creating notification for new message (HTTP):', err);
+    }
+    // Emit message to receiver if online
+    socketService.emitToUser(receiverId, 'receive-message', {
+      _id: message._id,
+      conversationId: message.conversationId,
+      senderId: message.senderId,
+      receiverId: message.receiverId,
+      content: message.content,
+      timestamp: message.timestamp,
+      read: message.read,
+      readAt: message.readAt
+    });
+    // --- End real-time and notification logic ---
+
+    res.status(201).json({
+      success: true,
+      data: { message },
+      message: 'Message sent successfully',
+      timestamp: new Date().toISOString()
+    });
+  } catch (error) {
+    logger.error('Error in sendMessage controller:', error.stack || error);
+    res.status(500).json({
+      success: false,
+      error: { 
+        code: 'INTERNAL_ERROR', 
+        message: 'Failed to send message' 
+      },
+      timestamp: new Date().toISOString()
+    });
+  }
+};
+
+/**
+ * Get or create direct conversation between two users
+ */
+export const getDirectConversation = async (req, res) => {
+  try {
+    const { targetUserId } = req.params;
+    const userId = req.user._id;
+
+    // Prevent self-chat
+    if (targetUserId === userId) {
+      return res.status(400).json({
+        success: false,
+        error: {
+          code: 'INVALID_REQUEST',
+          message: 'Cannot start conversation with yourself'
+        },
+        timestamp: new Date().toISOString()
+      });
+    }
+
+    const result = await chatService.getOrCreateDirectConversation(userId, targetUserId);
+
+    res.status(200).json({
+      success: true,
+      data: result,
+      message: 'Direct conversation retrieved successfully',
+      timestamp: new Date().toISOString()
+    });
+  } catch (error) {
+    logger.error('Error in getDirectConversation controller:', error.stack || error);
+    res.status(500).json({
+      success: false,
+      error: {
+        code: 'INTERNAL_ERROR',
+        message: 'Failed to retrieve direct conversation'
+      },
+      timestamp: new Date().toISOString()
+    });
+  }
+};
+
+/**
+ * Create direct conversation between two users
+ */
+export const createDirectConversation = async (req, res) => {
+  try {
+    const { targetUserId } = req.body;
+    const userId = req.user._id;
+
+    // Prevent self-chat
+    if (targetUserId === userId) {
+      return res.status(400).json({
+        success: false,
+        error: {
+          code: 'INVALID_REQUEST',
+          message: 'Cannot start conversation with yourself'
+        },
+        timestamp: new Date().toISOString()
+      });
+    }
+
+    const result = await chatService.createDirectConversation(userId, targetUserId);
+
+    res.status(201).json({
+      success: true,
+      data: result,
+      message: 'Direct conversation created successfully',
+      timestamp: new Date().toISOString()
+    });
+  } catch (error) {
+    logger.error('Error in createDirectConversation controller:', error.stack || error);
+    res.status(500).json({
+      success: false,
+      error: {
+        code: 'INTERNAL_ERROR',
+        message: 'Failed to create direct conversation'
       },
       timestamp: new Date().toISOString()
     });

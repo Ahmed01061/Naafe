@@ -1,5 +1,4 @@
-import React, { useState } from 'react';
-import { ChevronRight, CheckCircle } from 'lucide-react';
+import React from 'react';
 
 const steps = [
   {
@@ -27,18 +26,17 @@ const steps = [
   {
     icon: (
       <svg fill="currentColor" className="w-9 h-9" viewBox="0 0 256 256" xmlns="http://www.w3.org/2000/svg">
-        <path d="M229.66,77.66l-128,128a8,8,0,0,1-11.32,0l-56-56a8,8,0,0,1,11.32-11.32L96,188.69,218.34,66.34a8,8,0,0,1,11.32,11.32Z" />
+        <path d="M216,40H40A16,16,0,0,0,24,56V200a16,16,0,0,0,16,16H216a16,16,0,0,0,16-16V56A16,16,0,0,0,216,40ZM40,56H216v96H40ZM40,200V168H216v32Z" />
       </svg>
     ),
-    title: "3. احصل على الخدمة",
-    description: "استأجر المحترف الذي تختاره واستمتع بخدمة عالية الجودة.",
-    details: "اختر العرض المناسب، ادفع بأمان، وتابع العمل حتى الانتهاء. احصل على ضمان الجودة وخدمة ما بعد البيع.",
-    testimonial: "الخدمة كانت احترافية وممتازة. سأستخدم نافع مرة أخرى!"
-  },
+    title: "3. ادفع بأمان",
+    description: "استخدم نظام الدفع الآمن للحصول على الخدمة.",
+    details: "نظام دفع آمن ومضمون. الدفع يتم فقط بعد اكتمال الخدمة وموافقتك. ضمان استرداد كامل في حالة عدم الرضا.",
+    testimonial: "الدفع كان سهل وآمن، وحصلت على إيصال فوري!"
+  }
 ];
 
 const HowItWorks: React.FC = () => {
-  const [expandedStep, setExpandedStep] = useState<number | null>(null);
 
   return (
     <section className="py-16 sm:py-24 bg-white font-arabic text-text-primary" id="how-it-works">
@@ -51,11 +49,17 @@ const HowItWorks: React.FC = () => {
         {/* Progress Bar */}
         <div className="relative mb-12">
           {/* Single horizontal line behind all steps */}
-          <div className="hidden md:block absolute top-1/2 left-0 right-0 h-1 bg-gray-200 z-0" style={{ transform: 'translateY(-50%)' }} />
+          <div className="hidden md:block absolute top-1/2 left-0 right-0 h-1 bg-deep-teal/50 z-0" style={{ transform: 'translateY(-50%)' }} />
           <div className="flex justify-between items-center relative z-10">
             {steps.map((_, index) => (
               <div key={index} className="flex flex-col items-center w-1/3">
-                <div className="w-12 h-12 bg-deep-teal text-white rounded-full flex items-center justify-center text-lg font-bold shadow-lg">
+                <div 
+                  className="w-12 h-12 bg-deep-teal text-white rounded-full flex items-center justify-center text-lg font-bold shadow-lg transform hover:scale-110 transition-all duration-300"
+                  style={{
+                    animationDelay: `${index * 200}ms`,
+                    animation: 'bounce-in 0.6s cubic-bezier(0.68, -0.55, 0.265, 1.55) backwards'
+                  }}
+                >
                   {index + 1}
                 </div>
               </div>
@@ -63,46 +67,65 @@ const HowItWorks: React.FC = () => {
           </div>
         </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
+        {/* Steps Grid */}
+        <div className="grid md:grid-cols-3 gap-8 mb-12">
           {steps.map((step, index) => (
             <div 
-              key={index} 
-              className="card bg-warm-cream shadow-xl hover:shadow-2xl transition-all duration-300 cursor-pointer group"
-              onClick={() => setExpandedStep(expandedStep === index ? null : index)}
+              key={index}
+              className="bg-deep-teal rounded-xl p-6 shadow-lg hover:shadow-xl transition-all duration-300 transform hover:-translate-y-1"
+              style={{
+                animationDelay: `${index * 200 + 300}ms`,
+                animation: 'fade-in-up 0.6s ease-out backwards'
+              }}
             >
-              <div className="card-body items-center text-center p-6">
-                <div className="p-4 bg-deep-teal text-white rounded-full mb-4 group-hover:scale-110 transition-transform duration-300 group-hover:bg-deep-teal/90">
-                  {step.icon}
-                </div>
-                <h3 className="card-title text-xl font-bold group-hover:text-deep-teal transition-colors duration-300">
-                  {step.title}
-                </h3>
-                <p className="text-text-secondary mb-4">{step.description}</p>
-                
-                {/* Expandable Details */}
-                {expandedStep === index && (
-                  <div className="w-full mt-4 p-4 bg-white rounded-lg border border-deep-teal/20">
-                    <p className="text-text-primary text-sm leading-relaxed mb-3">
-                      {step.details}
+              <div className="flex items-center justify-center w-16 h-16 bg-white rounded-full mb-4 mx-auto">
+                {step.icon}
+              </div>
+              <h3 className="text-xl font-bold text-white text-center mb-3">{step.title}</h3>
+              <p className="text-white text-center mb-4">{step.description}</p>
+              <div className="bg-warm-cream rounded-lg p-4">
+                <p className="text-sm text-text-primary leading-relaxed">{step.details}</p>
+                {step.testimonial && (
+                  <div className="mt-3 pt-3 border-t border-deep-teal">
+                    <p className="text-sm text-deep-teal italic">
+                      "{step.testimonial}"
                     </p>
-                    <div className="flex items-center gap-2 text-accent text-sm">
-                      <CheckCircle className="w-4 h-4" />
-                      <span className="italic">{step.testimonial}</span>
-                    </div>
                   </div>
                 )}
-                
-                {/* Expand/Collapse Indicator */}
-                <div className="mt-2 flex items-center gap-1 text-deep-teal text-sm">
-                  <span>{expandedStep === index ? 'إخفاء التفاصيل' : 'عرض التفاصيل'}</span>
-                  <ChevronRight 
-                    className={`w-4 h-4 transition-transform duration-300 ${expandedStep === index ? 'rotate-90' : ''}`} 
-                  />
-                </div>
               </div>
             </div>
           ))}
         </div>
+
+        {/* Add animations */}
+        <style>{`
+          @keyframes bounce-in {
+            from {
+              opacity: 0;
+              transform: scale(0.3);
+            }
+            50% {
+              transform: scale(1.1);
+            }
+            70% {
+              transform: scale(0.9);
+            }
+            to {
+              opacity: 1;
+              transform: scale(1);
+            }
+          }
+          @keyframes fade-in-up {
+            from {
+              opacity: 0;
+              transform: translateY(20px);
+            }
+            to {
+              opacity: 1;
+              transform: translateY(0);
+            }
+          }
+        `}</style>
         
         {/* Success Statistics */}
         <div className="mt-16 text-center">

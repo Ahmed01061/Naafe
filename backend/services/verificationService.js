@@ -3,34 +3,29 @@ import { logger } from '../middlewares/logging.middleware.js';
 import mongoose from 'mongoose';
 import Notification from '../models/Notification.js';
 
-// Helper to get verification object and profile by role
-function getProfileAndVerification(user, role) {
-  if (role === 'provider') {
-    return { profile: user.providerProfile, setProfile: p => user.providerProfile = p };
-  } else {
-    return { profile: user.seekerProfile, setProfile: p => user.seekerProfile = p };
-  }
+// Helper to get verification object (now always top-level)
+function getVerification(user) {
+  return user.verification;
+}
+function setVerification(user, verification) {
+  user.verification = verification;
 }
 
 class VerificationService {
   /**
-   * Request verification as a provider
-   * @param {string} userId - User ID
-   * @param {Object} verificationData - Verification request data
-   * @returns {Object} Updated user verification status
+   * Request universal ID verification
    */
-  async requestVerification(userId, verificationData, role = 'provider') {
+  async requestVerification(userId, verificationData) {
     const user = await User.findById(userId);
     if (!user) throw new Error('User not found');
-    const { profile, setProfile } = getProfileAndVerification(user, role);
-    if (!profile) setProfile({});
-    if (profile.verification && profile.verification.status === 'pending') throw new Error('Already pending');
-    if (profile.verification && profile.verification.status === 'approved') throw new Error('Already verified');
-    if (profile.verification && profile.verification.attempts >= 3) throw new Error('Maximum attempts reached');
-    profile.verification = {
+    // Remove restriction: allow both providers and seekers
+    if (user.verification && user.verification.status === 'pending') throw new Error('Already pending');
+    if (user.verification && user.verification.status === 'approved') throw new Error('Already verified');
+    if (user.verification && user.verification.attempts >= 3) throw new Error('Maximum attempts reached');
+    user.verification = {
       status: 'pending',
       explanation: '',
-      attempts: (profile.verification?.attempts || 0) + 1,
+      attempts: (user.verification?.attempts || 0) + 1,
       idFrontUrl: verificationData.idFrontUrl,
       idBackUrl: verificationData.idBackUrl,
       selfieUrl: verificationData.selfieUrl,
@@ -41,11 +36,8 @@ class VerificationService {
       reviewedBy: null,
       auditTrail: [{ action: 'submitted', by: userId, at: new Date() }],
     };
-    setProfile(profile);
     await user.save();
-    // Notify admin(s) (pseudo, implement as needed)
-    // await Notification.create({ userId: adminId, type: 'system', message: 'New verification request' });
-    return { verificationStatus: profile.verification.status, message: 'Verification request submitted' };
+    return { verificationStatus: user.verification.status, message: 'Verification request submitted' };
   }
 
   /**
@@ -84,13 +76,11 @@ class VerificationService {
         status: 'pending'
       }));
 
-      if (user.providerProfile && user.providerProfile.verification) {
-        user.providerProfile.verification.documents.push(...newDocuments);
+      if (user.verification) {
+        user.verification.documents.push(...newDocuments);
       } else {
-        user.providerProfile = {
-          verification: {
-            documents: newDocuments
-          }
+        user.verification = {
+          documents: newDocuments
         };
       }
       await user.save();
@@ -98,7 +88,7 @@ class VerificationService {
       logger.info(`Documents uploaded for user ${userId}`);
 
       return {
-        documents: user.providerProfile.verification.documents,
+        documents: user.verification.documents,
         message: 'Documents uploaded successfully'
       };
     } catch (error) {
@@ -108,44 +98,137 @@ class VerificationService {
   }
 
   /**
-   * Get verification status for a user
-   * @param {string} userId - User ID
-   * @returns {Object} Verification status and details
+   * Get verification status
    */
-  async getVerificationStatus(userId, role = 'provider') {
+  async getVerificationStatus(userId) {
     const user = await User.findById(userId);
     if (!user) throw new Error('User not found');
-    const { profile } = getProfileAndVerification(user, role);
-    if (!profile || !profile.verification) throw new Error('No verification found');
-    return profile.verification;
+    if (!user.verification) throw new Error('No verification found');
+    return user.verification;
   }
 
   /**
-   * Get all pending verifications (admin only)
-   * @param {Object} options - Pagination options
-   * @returns {Object} Paginated list of pending verifications
+   * Get all verifications for admin dashboard
+   */
+  async getAllVerifications(options = {}) {
+    try {
+      const { page = 1, limit = 20, status = 'all' } = options;
+      const skip = (page - 1) * limit;
+      let query = {};
+      if (status && status !== 'all') {
+        query = { 'verification.status': status };
+      } else {
+        query = { 'verification': { $exists: true, $ne: null } };
+      }
+      const users = await User.find(query)
+        .select('name email phone roles verification isVerified isBlocked createdAt')
+        .sort({ createdAt: -1 })
+        .skip(skip)
+        .limit(limit);
+      const transformedUsers = users.map(user => {
+        const verification = user.verification;
+        const fullName = user.name && typeof user.name === 'object' 
+          ? `${user.name.first || ''} ${user.name.last || ''}`.trim()
+          : user.name || 'Unknown User';
+        return {
+          _id: user._id,
+          user: {
+            _id: user._id,
+            name: fullName,
+            email: user.email || '',
+            phone: user.phone || '',
+            roles: user.roles || [],
+            isBlocked: user.isBlocked || false
+          },
+          status: verification?.status || 'pending',
+          explanation: verification?.explanation || '',
+          idFrontUrl: verification?.idFrontUrl || '',
+          idBackUrl: verification?.idBackUrl || '',
+          selfieUrl: verification?.selfieUrl || '',
+          criminalRecordUrl: verification?.criminalRecordUrl || '',
+          criminalRecordIssuedAt: verification?.criminalRecordIssuedAt || '',
+          submittedAt: verification?.submittedAt || user.createdAt,
+          reviewedAt: verification?.reviewedAt || null,
+          reviewedBy: verification?.reviewedBy || null,
+          attempts: verification?.attempts || 1,
+          auditTrail: verification?.auditTrail || [],
+        };
+      }).filter(Boolean);
+      const total = await User.countDocuments(query);
+      return {
+        users: transformedUsers,
+        pagination: {
+          page: parseInt(page),
+          limit: parseInt(limit),
+          total,
+          pages: Math.ceil(total / limit)
+        }
+      };
+    } catch (error) {
+      logger.error(`Get all verifications error: ${error.message}`);
+      throw error;
+    }
+  }
+
+  /**
+   * Get pending verifications (for backward compatibility)
+   * @param {Object} options - Query options
+   * @returns {Object} Pending verifications with pagination
    */
   async getPendingVerifications(options = {}) {
     try {
       const { page = 1, limit = 20 } = options;
       const skip = (page - 1) * limit;
 
+      // Find users with pending verifications in either provider or seeker profiles
       const pendingUsers = await User.find({
-        'providerProfile.verification.status': 'pending',
-        role: 'provider'
+        $or: [
+          { 'verification.status': 'pending' }
+        ]
       })
-      .select('name email phone providerProfile.verification.createdAt')
-      .sort({ 'providerProfile.verification.createdAt': -1 })
+      .select('name email phone roles verification isVerified isBlocked createdAt')
+      .sort({ createdAt: -1 })
       .skip(skip)
       .limit(limit);
 
+      // Transform the data to include verification info and determine the role
+      const transformedUsers = pendingUsers.map(user => {
+        const verification = user.verification;
+        const fullName = user.name && typeof user.name === 'object' 
+          ? `${user.name.first || ''} ${user.name.last || ''}`.trim()
+          : user.name || 'Unknown User';
+
+        return {
+          _id: user._id,
+          user: {
+            _id: user._id,
+            name: fullName,
+            email: user.email || '',
+            phone: user.phone || '',
+            roles: user.roles || [],
+            isBlocked: user.isBlocked || false
+          },
+          status: verification?.status || 'pending',
+          explanation: verification?.explanation || '',
+          idFrontUrl: verification?.idFrontUrl || '',
+          idBackUrl: verification?.idBackUrl || '',
+          selfieUrl: verification?.selfieUrl || '',
+          criminalRecordUrl: verification?.criminalRecordUrl || '',
+          criminalRecordIssuedAt: verification?.criminalRecordIssuedAt || '',
+          submittedAt: verification?.submittedAt || user.createdAt,
+          attempts: verification?.attempts || 1,
+          auditTrail: verification?.auditTrail || [],
+        };
+      });
+
       const total = await User.countDocuments({
-        'providerProfile.verification.status': 'pending',
-        role: 'provider'
+        $or: [
+          { 'verification.status': 'pending' }
+        ]
       });
 
       return {
-        users: pendingUsers,
+        users: transformedUsers,
         pagination: {
           page: parseInt(page),
           limit: parseInt(limit),
@@ -161,50 +244,38 @@ class VerificationService {
 
   /**
    * Approve verification (admin only)
-   * @param {string} userId - User ID to approve
-   * @param {string} adminId - Admin ID who approved
-   * @param {string} notes - Optional notes
-   * @returns {Object} Updated user verification status
    */
-  async approveVerification(userId, adminId, notes = '', role = 'provider') {
+  async approveVerification(userId, adminId, notes = '') {
     const user = await User.findById(userId);
     if (!user) throw new Error('User not found');
-    const { profile, setProfile } = getProfileAndVerification(user, role);
-    if (!profile || !profile.verification || profile.verification.status !== 'pending') throw new Error('No pending verification');
-    profile.verification.status = 'approved';
-    profile.verification.reviewedAt = new Date();
-    profile.verification.reviewedBy = adminId;
-    profile.verification.explanation = notes;
-    profile.verification.auditTrail.push({ action: 'approved', by: adminId, at: new Date(), explanation: notes });
-    setProfile(profile);
+    if (!user.verification || user.verification.status !== 'pending') throw new Error('No pending verification');
+    user.verification.status = 'approved';
+    user.verification.reviewedAt = new Date();
+    user.verification.reviewedBy = adminId;
+    user.verification.explanation = notes;
+    user.verification.auditTrail.push({ action: 'approved', by: adminId, at: new Date(), explanation: notes });
+    user.isVerified = true;
     await user.save();
-    // Notify user
     await Notification.create({ userId, type: 'system', message: 'تمت الموافقة على التحقق من الهوية.' });
-    return { verificationStatus: profile.verification.status, reviewedAt: profile.verification.reviewedAt };
+    return { verificationStatus: user.verification.status, reviewedAt: user.verification.reviewedAt };
   }
 
   /**
    * Reject verification (admin only)
-   * @param {string} userId - User ID to reject
-   * @param {string} adminId - Admin ID who rejected
-   * @param {string} reason - Rejection reason
-   * @returns {Object} Updated user verification status
    */
-  async rejectVerification(userId, adminId, reason, role = 'provider') {
+  async rejectVerification(userId, adminId, reason) {
     const user = await User.findById(userId);
     if (!user) throw new Error('User not found');
-    const { profile, setProfile } = getProfileAndVerification(user, role);
-    if (!profile || !profile.verification || profile.verification.status !== 'pending') throw new Error('No pending verification');
-    profile.verification.status = 'rejected';
-    profile.verification.reviewedAt = new Date();
-    profile.verification.reviewedBy = adminId;
-    profile.verification.explanation = reason;
-    profile.verification.auditTrail.push({ action: 'rejected', by: adminId, at: new Date(), explanation: reason });
-    setProfile(profile);
+    if (!user.verification || user.verification.status !== 'pending') throw new Error('No pending verification');
+    user.verification.status = 'rejected';
+    user.verification.reviewedAt = new Date();
+    user.verification.reviewedBy = adminId;
+    user.verification.explanation = reason;
+    user.verification.auditTrail.push({ action: 'rejected', by: adminId, at: new Date(), explanation: reason });
+    user.isVerified = false;
     await user.save();
-    // Notify user
     await Notification.create({ userId, type: 'system', message: 'تم رفض التحقق من الهوية. السبب: ' + reason });
-    return { verificationStatus: profile.verification.status, reviewedAt: profile.verification.reviewedAt };
+    return { verificationStatus: user.verification.status, reviewedAt: user.verification.reviewedAt };
   }
 
   // Block user
@@ -214,8 +285,7 @@ class VerificationService {
     user.isBlocked = true;
     user.blockedReason = reason;
     // Add to audit trail for both profiles if exists
-    if (user.providerProfile?.verification) user.providerProfile.verification.auditTrail.push({ action: 'blocked', by: adminId, at: new Date(), explanation: reason });
-    if (user.seekerProfile?.verification) user.seekerProfile.verification.auditTrail.push({ action: 'blocked', by: adminId, at: new Date(), explanation: reason });
+    if (user.verification) user.verification.auditTrail.push({ action: 'blocked', by: adminId, at: new Date(), explanation: reason });
     await user.save();
     await Notification.create({ userId, type: 'system', message: 'تم حظرك من المنصة. السبب: ' + reason });
     return { isBlocked: true };
@@ -227,8 +297,7 @@ class VerificationService {
     if (!user) throw new Error('User not found');
     user.isBlocked = false;
     user.blockedReason = '';
-    if (user.providerProfile?.verification) user.providerProfile.verification.auditTrail.push({ action: 'unblocked', by: adminId, at: new Date() });
-    if (user.seekerProfile?.verification) user.seekerProfile.verification.auditTrail.push({ action: 'unblocked', by: adminId, at: new Date() });
+    if (user.verification) user.verification.auditTrail.push({ action: 'unblocked', by: adminId, at: new Date() });
     await user.save();
     await Notification.create({ userId, type: 'system', message: 'تم رفع الحظر عنك.' });
     return { isBlocked: false };

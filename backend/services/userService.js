@@ -86,12 +86,23 @@ class UserService {
   async getPublicUserProfile(userId, requestingUserId) {
     const user = await User.findById(userId).lean();
     if (!user) throw new Error('User not found');
-    // Return both profiles if present
+    // Add trust signals for premium providers
+    let trustSignals = {};
+    if (user.roles.includes('provider') && user.isPremium) {
+      trustSignals = {
+        totalJobsCompleted: user.providerProfile?.totalJobsCompleted || 0,
+        averageRating: user.providerProfile?.rating || 0,
+        memberSince: user.createdAt,
+        isVerified: user.isVerified || false
+      };
+    }
+    // Return both profiles if present, plus trust signals
     return {
       ...user,
       seekerProfile: user.seekerProfile || null,
       providerProfile: user.providerProfile || null,
-      roles: user.roles || []
+      roles: user.roles || [],
+      ...trustSignals
     };
   }
 
@@ -119,8 +130,12 @@ class UserService {
       if (user.roles.includes('provider')) {
         stats = {
           ...stats,
-          totalJobsCompleted: user.totalJobsCompleted || 0,
-          totalEarnings: user.totalEarnings || 0
+          totalJobsCompleted: user.providerProfile?.totalJobsCompleted || 0,
+          totalEarnings: user.providerProfile?.totalEarnings || 0,
+          averageRating: user.providerProfile?.rating || user.rating || 0,
+          totalReviews: user.providerProfile?.reviewCount || user.reviewCount || 0,
+          responseTime: user.providerProfile?.averageResponseTime || 'غير محدد',
+          completionRate: user.providerProfile?.completionRate || 0
         };
       } else if (user.roles.includes('seeker')) {
         stats = {
@@ -164,6 +179,11 @@ class UserService {
     const avgRating = reviewCount > 0 ? (reviews.reduce((sum, r) => sum + r.rating, 0) / reviewCount) : 0;
     user.rating = avgRating;
     user.reviewCount = reviewCount;
+    // Also update providerProfile if user is a provider
+    if (user.roles.includes('provider') && user.providerProfile) {
+      user.providerProfile.rating = avgRating;
+      user.providerProfile.reviewCount = reviewCount;
+    }
     await user.save();
   }
 
@@ -188,8 +208,73 @@ class UserService {
     return user.providerProfile.skills;
   }
 
+  async addPortfolioImage(userId, imageUrl) {
+    const user = await User.findByIdAndUpdate(
+      userId,
+      { $addToSet: { portfolio: imageUrl } },
+      { new: true }
+    );
+    return user;
+  }
+
+  async removePortfolioImage(userId, imageUrl) {
+    const user = await User.findByIdAndUpdate(
+      userId,
+      { $pull: { portfolio: imageUrl } },
+      { new: true }
+    );
+    return user;
+  }
+
+  /**
+   * Get user's public listings/services
+   */
+  async getUserListings(userId) {
+    const user = await User.findById(userId);
+    if (!user) throw new Error('User not found');
+
+    // Get user's service listings
+    const ServiceListing = (await import('../models/ServiceListing.js')).default;
+    const listings = await ServiceListing.find({ 
+      provider: userId, 
+      status: 'active' 
+    }).populate('provider', 'name avatarUrl');
+
+    return listings;
+  }
+
+  /**
+   * Get user's reviews
+   */
+  async getUserReviews(userId) {
+    const user = await User.findById(userId);
+    if (!user) throw new Error('User not found');
+
+    // Get reviews for this user (when they were the provider)
+    const Review = (await import('../models/Review.js')).default;
+    const reviews = await Review.find({ 
+      reviewedUser: userId 
+    }).populate('reviewer', 'name avatarUrl').sort({ createdAt: -1 });
+
+    return reviews;
+  }
+
+  /**
+   * Update provider availability
+   */
+  async updateAvailability(userId, { workingDays, startTime, endTime }) {
+    const user = await User.findById(userId);
+    if (!user) throw new Error('User not found');
+    if (!user.providerProfile) user.providerProfile = {};
+    user.providerProfile.workingDays = workingDays;
+    user.providerProfile.startTime = startTime;
+    user.providerProfile.endTime = endTime;
+    await user.save();
+    return user;
+  }
+
   // Admin: Get all users (paginated, filterable)
-  async getAllUsers({ page = 1, limit = 20, search = '', role }) {
+  async getAllUsers({ page = 1, limit = 20, search = '', role, isVerified, isBlocked }) {
     const query = {};
     if (search) {
       query.$or = [
@@ -200,6 +285,12 @@ class UserService {
     }
     if (role) {
       query.roles = role;
+    }
+    if (isVerified !== undefined) {
+      query.isVerified = isVerified === 'true';
+    }
+    if (isBlocked !== undefined) {
+      query.isBlocked = isBlocked === 'true';
     }
     const skip = (parseInt(page) - 1) * parseInt(limit);
     const users = await User.find(query)
@@ -244,6 +335,18 @@ class UserService {
     user.isBlocked = false;
     await user.save();
     return user;
+  }
+
+  // Get up to 5 premium providers for featured sections
+  async getFeaturedPremiumProviders(limit = 5) {
+    const users = await User.find({
+      roles: 'provider',
+      isPremium: true
+    })
+      .sort({ createdAt: -1 })
+      .limit(limit)
+      .select('name avatarUrl providerProfile isPremium isTopRated isVerified createdAt profile.location');
+    return users;
   }
 }
 

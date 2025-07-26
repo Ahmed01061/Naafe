@@ -1,7 +1,7 @@
 import Stripe from 'stripe';
 import dotenv from 'dotenv';
 
-dotenv.config();
+dotenv.config({ path: './backend/.env' });
 
 const stripe = new Stripe(process.env.STRIPE_SECRET_KEY, {
   apiVersion: '2024-12-18.acacia',
@@ -23,11 +23,11 @@ async function setupStripeProducts() {
 
     console.log('Premium product created:', premiumProduct.id);
 
-    // Create Premium Plan Price (49 EGP per month)
+    // Create Premium Plan Price (49 USD per month)
     const premiumPrice = await stripe.prices.create({
       product: premiumProduct.id,
-      unit_amount: 4900, // 49 EGP in piastres
-      currency: 'egp',
+      unit_amount: 4900, // 49 USD in cents
+      currency: 'usd',
       recurring: {
         interval: 'month'
       },
@@ -59,6 +59,7 @@ async function setupStripeProducts() {
     console.log('STRIPE_PREMIUM_PRICE_ID=' + premiumPrice.id);
     console.log('STRIPE_PREMIUM_PRODUCT_ID=' + premiumProduct.id);
     console.log('STRIPE_FREE_PRODUCT_ID=' + freeProduct.id);
+    console.log('\nAfter running this script, update STRIPE_PREMIUM_PRICE_ID in your .env with the new price ID.');
 
   } catch (error) {
     console.error('Error setting up Stripe products:', error);

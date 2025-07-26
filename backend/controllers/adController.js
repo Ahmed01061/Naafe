@@ -284,6 +284,91 @@ class AdController {
   }
 
   /**
+   * Cancel ad and process refund
+   * POST /api/ads/:id/cancel
+   */
+  async cancelAd(req, res) {
+    try {
+      const { id } = req.params;
+      const userId = req.user._id;
+
+      const result = await adService.cancelAd(id, userId);
+
+      res.status(200).json({
+        success: true,
+        data: result,
+        message: result.message
+      });
+    } catch (error) {
+      console.error('Error cancelling ad:', error);
+      res.status(500).json({
+        success: false,
+        error: {
+          code: 'CANCEL_ERROR',
+          message: error.message || 'حدث خطأ أثناء إلغاء الإعلان'
+        }
+      });
+    }
+  }
+
+  /**
+   * Get refund estimate for ad cancellation
+   * POST /api/ads/:id/refund-estimate
+   */
+  async getRefundEstimate(req, res) {
+    try {
+      const { id } = req.params;
+      const userId = req.user._id;
+      const Ad = (await import('../models/Ad.js')).default;
+      
+      const ad = await Ad.findById(id);
+      
+      if (!ad) {
+        return res.status(404).json({
+          success: false,
+          error: {
+            code: 'NOT_FOUND',
+            message: 'الإعلان غير موجود'
+          }
+        });
+      }
+
+      // Check authorization
+      if (ad.advertiserId.toString() !== userId.toString()) {
+        return res.status(403).json({
+          success: false,
+          error: {
+            code: 'UNAUTHORIZED',
+            message: 'غير مصرح لك بإلغاء هذا الإعلان'
+          }
+        });
+      }
+
+      const { refundAmount, refundType, daysSinceStart } = adService.calculateRefundAmount(ad, new Date());
+
+      res.status(200).json({
+        success: true,
+        data: {
+          refundAmount,
+          refundType,
+          daysSinceStart,
+          adId: id
+        },
+        message: 'تم حساب مبلغ الاسترداد بنجاح'
+      });
+    } catch (error) {
+      console.error('Error getting refund estimate:', error);
+      res.status(500).json({
+        success: false,
+        error: {
+          code: 'ESTIMATE_ERROR',
+          message: error.message || 'حدث خطأ أثناء حساب مبلغ الاسترداد'
+        }
+      });
+    }
+  }
+
+  /**
    * Delete ad
    * DELETE /api/ads/:id
    */

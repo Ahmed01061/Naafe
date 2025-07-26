@@ -3,7 +3,7 @@
 This document provides comprehensive documentation for the refactored offer routes in the Naafe' platform.
 
 ## Base URL
-All offer routes are prefixed with `/api/offer`
+All offer routes are prefixed with `/api/offers`
 
 ## Authentication
 All routes require authentication via JWT token in the Authorization header:
@@ -15,14 +15,22 @@ Authorization: Bearer <your-jwt-token>
 
 | Method | Path | Description | Access |
 |--------|------|-------------|--------|
-| POST | `/api/offer/requests/:jobRequestId` | Create an offer for a job request | Providers only |
-| GET | `/api/offer/requests/:jobRequestId` | Get all offers for a job request | Any authenticated user |
-| GET | `/api/offer` | Get own offers | Providers only |
-| GET | `/api/offer/:offerId` | Get specific offer by ID | Offer owner, job request owner, or admin |
-| PATCH | `/api/offer/:offerId` | Update an offer | Offer owner only |
-| DELETE | `/api/offer/:offerId` | Delete/withdraw an offer | Offer owner only |
-| POST | `/api/offer/:offerId/accept` | Accept an offer | Job request owner only |
-| POST | `/api/offer/:offerId/reject` | Reject an offer | Job request owner only |
+| POST | `/api/offers/requests/:jobRequestId` | Create an offer for a job request | Providers only |
+| GET | `/api/offers/requests/:jobRequestId` | Get all offers for a job request | Any authenticated user |
+| GET | `/api/offers` | Get own offers | Providers only |
+| GET | `/api/offers/:offerId` | Get specific offer by ID | Offer owner, job request owner, or admin |
+| PATCH | `/api/offers/:offerId` | Update an offer | Offer owner only |
+| DELETE | `/api/offers/:offerId` | Delete/withdraw an offer | Offer owner only |
+| POST | `/api/offers/:offerId/accept` | Accept an offer | Job request owner only |
+| POST | `/api/offers/:offerId/reject` | Reject an offer | Job request owner only |
+| PATCH | `/api/offers/:offerId/negotiation` | Update negotiation terms | Provider or seeker |
+| POST | `/api/offers/:offerId/confirm-negotiation` | Confirm negotiation terms | Provider or seeker |
+| POST | `/api/offers/:offerId/reset-confirmation` | Reset negotiation confirmation | Provider or seeker |
+| GET | `/api/offers/:offerId/negotiation-history` | Get negotiation history | Provider or seeker |
+| POST | `/api/offers/:offerId/process-payment` | Process escrow payment | Seeker only |
+| POST | `/api/offers/:offerId/complete` | Mark service as completed | Seeker only |
+| POST | `/api/offers/:offerId/cancel-request` | Request service cancellation | Provider or seeker |
+| POST | `/api/offers/:offerId/process-cancellation` | Process cancellation | Admin only |
 
 ---
 
@@ -30,9 +38,9 @@ Authorization: Bearer <your-jwt-token>
 
 ### 1. Create Offer
 
-**Route:** `POST /api/offer/requests/:jobRequestId`
+**Route:** `POST /api/offers/requests/:jobRequestId`
 
-**Description:** Create a new offer for a specific job request
+**Description:** Create a new offer for a specific job request. Creates a conversation automatically.
 
 **Access:** Providers only
 
@@ -42,20 +50,17 @@ Authorization: Bearer <your-jwt-token>
 **Request Body:**
 ```json
 {
-  "price": {
-    "amount": 2500,
+  "budget": {
+    "min": 2500,
+    "max": 3000,
     "currency": "EGP"
   },
   "message": "I can complete this job efficiently and on time",
-  "estimatedTimeDays": 3
+  "estimatedTimeDays": 3,
+  "availableDates": ["2024-01-01T00:00:00.000Z", "2024-01-02T00:00:00.000Z"],
+  "timePreferences": ["morning", "afternoon"]
 }
 ```
-
-**Validation Rules:**
-- `price.amount`: Must be a positive number
-- `price.currency`: Must be one of: EGP, USD, EUR
-- `message`: Optional, max 1000 characters
-- `estimatedTimeDays`: Optional, minimum 1 day
 
 **Response:**
 ```json
@@ -63,42 +68,34 @@ Authorization: Bearer <your-jwt-token>
   "success": true,
   "data": {
     "_id": "offer_id",
-    "jobRequest": "job_request_id",
-    "provider": {
-      "_id": "provider_id",
-      "name": {
-        "first": "John",
-        "last": "Provider"
-      },
-      "email": "provider@example.com",
-      "phone": "01012345678"
-    },
-    "price": {
-      "amount": 2500,
+    "budget": {
+      "min": 2500,
+      "max": 3000,
       "currency": "EGP"
     },
     "message": "I can complete this job efficiently and on time",
     "estimatedTimeDays": 3,
-    "status": "pending",
-    "createdAt": "2024-01-01T00:00:00.000Z",
-    "updatedAt": "2024-01-01T00:00:00.000Z"
+    "availableDates": ["2024-01-01T00:00:00.000Z", "2024-01-02T00:00:00.000Z"],
+    "timePreferences": ["morning", "afternoon"],
+    "status": "negotiating",
+    "conversation": "conversation_id",
+    "createdAt": "2024-01-01T00:00:00.000Z"
   },
   "message": "Offer created successfully"
 }
 ```
 
-**Error Cases:**
-- Job request not found
-- Job request is not open
-- Provider already made an offer on this job
-- Price outside budget range
-- Invalid validation data
+**Flow Notes:**
+- When an offer is created, its status is set to 'negotiating'
+- A conversation is automatically created for chat between provider and seeker
+- Seeker and provider must discuss and reach agreement on all terms through chat
+- Only after both parties confirm all negotiation terms can the offer be accepted
 
 ---
 
-### 2. Get Offers by Job Request
+### 2. Get All Offers for Job Request
 
-**Route:** `GET /api/offer/requests/:jobRequestId`
+**Route:** `GET /api/offers/requests/:jobRequestId`
 
 **Description:** Get all offers for a specific job request
 
@@ -106,41 +103,30 @@ Authorization: Bearer <your-jwt-token>
 
 **Parameters:**
 - `jobRequestId` (string, required): ID of the job request
-
-**Query Parameters:**
-- `status` (optional): Filter by offer status (pending, accepted, rejected, withdrawn)
+- `status` (string, optional): Filter by offer status (pending, negotiating, agreement_reached, accepted, rejected, withdrawn)
 
 **Response:**
 ```json
 {
   "success": true,
-  "data": {
-    "offers": [
-      {
-        "_id": "offer_id",
-        "provider": {
-          "_id": "provider_id",
-          "name": {
-            "first": "John",
-            "last": "Provider"
-          },
-          "email": "provider@example.com",
-          "phone": "01012345678",
-          "rating": 4.5,
-          "reviewCount": 10
-        },
-        "price": {
-          "amount": 2500,
-          "currency": "EGP"
-        },
-        "message": "I can complete this job efficiently and on time",
-        "estimatedTimeDays": 3,
-        "status": "pending",
-        "createdAt": "2024-01-01T00:00:00.000Z"
-      }
-    ],
-    "totalCount": 1
-  },
+  "data": [
+    {
+      "_id": "offer_id_1",
+      "provider": {
+        "_id": "provider_id",
+        "name": "Provider Name",
+        "email": "provider@example.com",
+        "phone": "+1234567890"
+      },
+      "budget": {
+        "min": 2500,
+        "max": 3000,
+        "currency": "EGP"
+      },
+      "status": "negotiating",
+      "createdAt": "2024-01-01T00:00:00.000Z"
+    }
+  ],
   "message": "Offers retrieved successfully"
 }
 ```
@@ -149,58 +135,47 @@ Authorization: Bearer <your-jwt-token>
 
 ### 3. Get Own Offers
 
-**Route:** `GET /api/offer`
+**Route:** `GET /api/offers`
 
 **Description:** Get all offers created by the authenticated provider
 
 **Access:** Providers only
 
 **Query Parameters:**
-- `status` (optional): Filter by offer status
-- `jobRequest` (optional): Filter by job request ID
+- `status` (string, optional): Filter by offer status (pending, negotiating, agreement_reached, accepted, rejected, withdrawn)
+- `jobRequest` (string, optional): Filter by job request ID
 
 **Response:**
 ```json
 {
   "success": true,
-  "data": {
-    "offers": [
-      {
-        "_id": "offer_id",
-        "jobRequest": {
-          "_id": "job_request_id",
-          "title": "Web Development Project",
-          "description": "Need a website built",
-          "budget": {
-            "min": 1000,
-            "max": 5000
-          },
-          "deadline": "2024-01-15T00:00:00.000Z",
-          "status": "open"
-        },
-        "price": {
-          "amount": 2500,
-          "currency": "EGP"
-        },
-        "message": "I can complete this job efficiently and on time",
-        "estimatedTimeDays": 3,
-        "status": "pending",
-        "createdAt": "2024-01-01T00:00:00.000Z"
-      }
-    ],
-    "totalCount": 1
-  },
+  "data": [
+    {
+      "_id": "offer_id",
+      "jobRequest": {
+        "_id": "job_request_id",
+        "title": "Job Request Title"
+      },
+      "budget": {
+        "min": 2500,
+        "max": 3000,
+        "currency": "EGP"
+      },
+      "status": "negotiating",
+      "createdAt": "2024-01-01T00:00:00.000Z"
+    }
+  ],
   "message": "Offers retrieved successfully"
 }
 ```
 
 ---
 
-### 4. Get Offer by ID
+### 4. Get Specific Offer
 
-**Route:** `GET /api/offer/:offerId`
+**Route:** `GET /api/offers/:offerId`
 
-**Description:** Get a specific offer by ID
+**Description:** Get details of a specific offer
 
 **Access:** Offer owner, job request owner, or admin
 
@@ -215,52 +190,44 @@ Authorization: Bearer <your-jwt-token>
     "_id": "offer_id",
     "jobRequest": {
       "_id": "job_request_id",
-      "title": "Web Development Project",
-      "description": "Need a website built",
-      "budget": {
-        "min": 1000,
-        "max": 5000
-      },
-      "deadline": "2024-01-15T00:00:00.000Z",
-      "status": "open",
-      "seeker": "seeker_id"
+      "title": "Job Request Title",
+      "description": "Job request description"
     },
     "provider": {
       "_id": "provider_id",
-      "name": {
-        "first": "John",
-        "last": "Provider"
-      },
-      "email": "provider@example.com",
-      "phone": "01012345678",
-      "rating": 4.5,
-      "reviewCount": 10
+      "name": "Provider Name",
+      "email": "provider@example.com"
     },
-    "price": {
-      "amount": 2500,
+    "budget": {
+      "min": 2500,
+      "max": 3000,
       "currency": "EGP"
     },
     "message": "I can complete this job efficiently and on time",
-    "estimatedTimeDays": 3,
-    "status": "pending",
-    "createdAt": "2024-01-01T00:00:00.000Z",
-    "updatedAt": "2024-01-01T00:00:00.000Z"
+    "status": "negotiating",
+    "negotiation": {
+      "price": 2800,
+      "date": "2024-01-05T00:00:00.000Z",
+      "time": "10:00 AM",
+      "materials": "I'll bring all necessary tools",
+      "scope": "Full service including cleaning afterward",
+      "seekerConfirmed": false,
+      "providerConfirmed": true
+    },
+    "conversation": "conversation_id",
+    "createdAt": "2024-01-01T00:00:00.000Z"
   },
   "message": "Offer retrieved successfully"
 }
 ```
 
-**Error Cases:**
-- Offer not found
-- Access denied (not offer owner, job request owner, or admin)
-
 ---
 
 ### 5. Update Offer
 
-**Route:** `PATCH /api/offer/:offerId`
+**Route:** `PATCH /api/offers/:offerId`
 
-**Description:** Update an existing offer (only pending offers can be updated)
+**Description:** Update an offer (only pending/negotiating offers can be updated)
 
 **Access:** Offer owner only
 
@@ -270,8 +237,9 @@ Authorization: Bearer <your-jwt-token>
 **Request Body:**
 ```json
 {
-  "price": {
-    "amount": 3000,
+  "budget": {
+    "min": 2800,
+    "max": 3000,
     "currency": "EGP"
   },
   "message": "Updated offer message with better terms",
@@ -279,26 +247,20 @@ Authorization: Bearer <your-jwt-token>
 }
 ```
 
-**Validation Rules:**
-- All fields are optional
-- `price.amount`: Must be a positive number
-- `price.currency`: Must be one of: EGP, USD, EUR
-- `message`: Max 1000 characters
-- `estimatedTimeDays`: Minimum 1 day
-
 **Response:**
 ```json
 {
   "success": true,
   "data": {
     "_id": "offer_id",
-    "price": {
-      "amount": 3000,
+    "budget": {
+      "min": 2800,
+      "max": 3000,
       "currency": "EGP"
     },
     "message": "Updated offer message with better terms",
     "estimatedTimeDays": 2,
-    "status": "pending",
+    "status": "negotiating",
     "updatedAt": "2024-01-01T00:00:00.000Z"
   },
   "message": "Offer updated successfully"
@@ -308,17 +270,17 @@ Authorization: Bearer <your-jwt-token>
 **Error Cases:**
 - Offer not found
 - Access denied (not offer owner)
-- Can only update pending offers
-- Price outside budget range
+- Can only update pending/negotiating offers
+- Budget outside job request range
 - Invalid validation data
 
 ---
 
 ### 6. Delete Offer
 
-**Route:** `DELETE /api/offer/:offerId`
+**Route:** `DELETE /api/offers/:offerId`
 
-**Description:** Delete/withdraw an offer (only pending offers can be deleted)
+**Description:** Delete/withdraw an offer (only pending/negotiating offers can be deleted)
 
 **Access:** Offer owner only
 
@@ -329,10 +291,6 @@ Authorization: Bearer <your-jwt-token>
 ```json
 {
   "success": true,
-  "data": {
-    "success": true,
-    "message": "Offer deleted successfully"
-  },
   "message": "Offer deleted successfully"
 }
 ```
@@ -340,15 +298,144 @@ Authorization: Bearer <your-jwt-token>
 **Error Cases:**
 - Offer not found
 - Access denied (not offer owner)
-- Can only delete pending offers
+- Can only delete pending/negotiating offers
 
 ---
 
-### 7. Accept Offer
+### 7. Update Negotiation Terms
 
-**Route:** `POST /api/offer/:offerId/accept`
+**Route:** `PATCH /api/offers/:offerId/negotiation`
 
-**Description:** Accept an offer (job request owner only)
+**Description:** Update negotiation terms for an offer
+
+**Access:** Provider or seeker
+
+**Parameters:**
+- `offerId` (string, required): ID of the offer
+
+**Request Body:**
+```json
+{
+  "price": 2800,
+  "date": "2024-01-05T00:00:00.000Z",
+  "time": "10:00 AM",
+  "materials": "I'll bring all necessary tools",
+  "scope": "Full service including cleaning afterward"
+}
+```
+
+**Response:**
+```json
+{
+  "success": true,
+  "data": {
+    "price": 2800,
+    "date": "2024-01-05T00:00:00.000Z",
+    "time": "10:00 AM",
+    "materials": "I'll bring all necessary tools",
+    "scope": "Full service including cleaning afterward",
+    "seekerConfirmed": false,
+    "providerConfirmed": false,
+    "lastModifiedBy": "user_id",
+    "lastModifiedAt": "2024-01-01T00:00:00.000Z"
+  },
+  "message": "Negotiation terms updated successfully"
+}
+```
+
+**Error Cases:**
+- Offer not found
+- Access denied
+- Can only update negotiation for pending/negotiating offers
+- No changes to negotiation terms
+
+---
+
+### 8. Confirm Negotiation
+
+**Route:** `POST /api/offers/:offerId/confirm-negotiation`
+
+**Description:** Confirm negotiation terms for an offer
+
+**Access:** Provider or seeker
+
+**Parameters:**
+- `offerId` (string, required): ID of the offer
+
+**Response:**
+```json
+{
+  "success": true,
+  "data": {
+    "price": 2800,
+    "date": "2024-01-05T00:00:00.000Z",
+    "time": "10:00 AM",
+    "materials": "I'll bring all necessary tools",
+    "scope": "Full service including cleaning afterward",
+    "seekerConfirmed": true,
+    "providerConfirmed": true,
+    "lastModifiedBy": "user_id",
+    "lastModifiedAt": "2024-01-01T00:00:00.000Z"
+  },
+  "message": "Negotiation confirmed successfully"
+}
+```
+
+**Notes:**
+- All negotiation fields must be set before confirmation
+- If both parties confirm, the offer status changes to 'agreement_reached'
+- After agreement is reached, the seeker can accept the offer
+
+**Error Cases:**
+- Offer not found
+- Access denied
+- Can only confirm negotiation for pending/negotiating offers
+- Required negotiation fields missing
+
+---
+
+### 9. Reset Negotiation Confirmation
+
+**Route:** `POST /api/offers/:offerId/reset-confirmation`
+
+**Description:** Reset negotiation confirmations for an offer
+
+**Access:** Provider or seeker
+
+**Parameters:**
+- `offerId` (string, required): ID of the offer
+
+**Response:**
+```json
+{
+  "success": true,
+  "data": {
+    "price": 2800,
+    "date": "2024-01-05T00:00:00.000Z",
+    "time": "10:00 AM",
+    "materials": "I'll bring all necessary tools",
+    "scope": "Full service including cleaning afterward",
+    "seekerConfirmed": false,
+    "providerConfirmed": false,
+    "lastModifiedBy": "user_id",
+    "lastModifiedAt": "2024-01-01T00:00:00.000Z"
+  },
+  "message": "Negotiation confirmation reset successfully"
+}
+```
+
+**Error Cases:**
+- Offer not found
+- Access denied
+- Can only reset negotiation for pending/negotiating offers
+
+---
+
+### 10. Accept Offer
+
+**Route:** `POST /api/offers/:offerId/accept`
+
+**Description:** Accept an offer (only job request owner/seeker can accept)
 
 **Access:** Job request owner only
 
@@ -364,31 +451,41 @@ Authorization: Bearer <your-jwt-token>
     "status": "accepted",
     "updatedAt": "2024-01-01T00:00:00.000Z"
   },
-  "message": "Offer accepted successfully"
+  "message": "تم قبول العرض بنجاح. يرجى إكمال عملية الدفع للإسكرو لتأكيد الخدمة"
 }
 ```
 
 **Notes:**
-- This will also update the job request status to 'assigned'
-- All other pending offers for this job will be rejected
+- Only offers with status 'agreement_reached' can be accepted
+- Both parties must have confirmed all negotiation terms
+- All negotiation fields must be set
+- After acceptance, payment to escrow is required
 
 **Error Cases:**
 - Offer not found
 - Access denied (not job request owner)
-- Can only accept pending offers
+- Agreement not reached or confirmations incomplete
+- Required negotiation fields missing
 
 ---
 
-### 8. Reject Offer
+### 11. Process Escrow Payment
 
-**Route:** `POST /api/offer/:offerId/reject`
+**Route:** `POST /api/offers/:offerId/process-payment`
 
-**Description:** Reject an offer (job request owner only)
+**Description:** Process escrow payment for an accepted offer
 
-**Access:** Job request owner only
+**Access:** Seeker only
 
 **Parameters:**
-- `offerId` (string, required): ID of the offer to reject
+- `offerId` (string, required): ID of the offer
+
+**Request Body:**
+```json
+{
+  "paymentId": "payment_id"
+}
+```
 
 **Response:**
 ```json
@@ -396,57 +493,138 @@ Authorization: Bearer <your-jwt-token>
   "success": true,
   "data": {
     "_id": "offer_id",
-    "status": "rejected",
-    "updatedAt": "2024-01-01T00:00:00.000Z"
+    "status": "in_progress",
+    "payment": {
+      "status": "escrowed",
+      "amount": 2800,
+      "currency": "EGP",
+      "escrowedAt": "2024-01-01T00:00:00.000Z",
+      "scheduledDate": "2024-01-05T00:00:00.000Z",
+      "scheduledTime": "10:00 AM",
+      "paymentId": "payment_id"
+    }
   },
-  "message": "Offer rejected successfully"
+  "message": "تم معالجة الدفع وتحويله إلى حساب الضمان بنجاح"
 }
 ```
 
 **Error Cases:**
 - Offer not found
-- Access denied (not job request owner)
-- Can only reject pending offers
+- Access denied
+- Can only process escrow payments for accepted offers
 
 ---
 
-## Validation Error Response Format
+### 12. Mark Service Completed
 
-When validation fails, the API returns:
+**Route:** `POST /api/offers/:offerId/complete`
 
+**Description:** Mark service as completed and release funds from escrow
+
+**Access:** Seeker only
+
+**Parameters:**
+- `offerId` (string, required): ID of the offer
+
+**Response:**
 ```json
 {
-  "success": false,
-  "error": {
-    "code": "VALIDATION_ERROR",
-    "message": "Validation failed",
-    "details": [
-      {
-        "field": "price.amount",
-        "message": "Price amount must be a positive number",
-        "value": -100
-      }
-    ]
-  }
+  "success": true,
+  "data": {
+    "_id": "offer_id",
+    "status": "completed",
+    "payment": {
+      "status": "released",
+      "amount": 2800,
+      "currency": "EGP",
+      "escrowedAt": "2024-01-01T00:00:00.000Z",
+      "releasedAt": "2024-01-06T00:00:00.000Z"
+    }
+  },
+  "message": "تم إكمال الخدمة وتحرير الدفع بنجاح"
 }
 ```
 
-## Common Error Codes
+**Error Cases:**
+- Offer not found
+- Access denied (not seeker)
+- Only in-progress services can be marked as completed
+- Payment must be in escrow
 
-| Code | Description | HTTP Status |
-|------|-------------|-------------|
-| `VALIDATION_ERROR` | Input validation failed | 400 |
-| `UNAUTHORIZED` | Authentication required | 401 |
-| `FORBIDDEN` | Insufficient permissions | 403 |
-| `NOT_FOUND` | Resource not found | 404 |
-| `CONFLICT` | Resource already exists | 409 |
+---
 
-## Testing
+### 13. Request Service Cancellation
 
-Use the provided test script to verify all endpoints:
+**Route:** `POST /api/offers/:offerId/cancel-request`
 
-```bash
-node test-offer-refactored.js
+**Description:** Request service cancellation
+
+**Access:** Provider or seeker
+
+**Parameters:**
+- `offerId` (string, required): ID of the offer
+
+**Request Body:**
+```json
+{
+  "reason": "Unable to proceed due to emergency"
+}
 ```
 
-This will test all the refactored offer routes with proper validation and error handling. 
+**Response:**
+```json
+{
+  "success": true,
+  "data": {
+    "refundPercentage": 100,
+    "cancellation": {
+      "status": "requested",
+      "requestedBy": "user_id",
+      "requestedAt": "2024-01-01T00:00:00.000Z",
+      "reason": "Unable to proceed due to emergency"
+    }
+  },
+  "message": "تم طلب إلغاء الخدمة بنجاح"
+}
+```
+
+**Notes:**
+- Cancellation refund percentage is calculated based on time before scheduled service:
+  - More than 12 hours: 100% refund
+  - Less than 12 hours: 70% refund (provider keeps 30%)
+
+**Error Cases:**
+- Offer not found
+- Access denied
+- Only accepted or in-progress services can be cancelled
+- Cancellation request already pending
+
+---
+
+### 14. Process Cancellation
+
+**Route:** `POST /api/offers/:offerId/process-cancellation`
+
+**Description:** Process cancellation request (admin only)
+
+**Access:** Admin only
+
+**Parameters:**
+- `offerId` (string, required): ID of the offer
+
+**Response:**
+```json
+{
+  "success": true,
+  "data": {
+    "refundPercentage": 100,
+    "status": "cancelled"
+  },
+  "message": "تم معالجة طلب إلغاء الخدمة بنجاح"
+}
+```
+
+**Error Cases:**
+- Offer not found
+- No pending cancellation request
+- Access denied (not admin) 

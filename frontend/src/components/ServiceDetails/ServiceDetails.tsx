@@ -5,8 +5,7 @@ import Badge from '../ui/Badge';
 interface ServiceUser {
   name?: { first?: string; last?: string } | string;
   roles?: string[];
-  providerProfile?: { verification?: { status?: string } };
-  seekerProfile?: { verification?: { status?: string } };
+  isVerified?: boolean;
 }
 
 interface ServiceDetailsProps {
@@ -24,6 +23,9 @@ interface ServiceDetailsProps {
     seeker?: ServiceUser;
     additionalDetails?: string;
     tags?: string[];
+    workingDays?: string[];
+    startTime?: string;
+    endTime?: string;
   };
 }
 
@@ -135,10 +137,8 @@ const ServiceDetails: React.FC<ServiceDetailsProps> = ({ service }) => {
 
   // Helper: check if user is verified
   const isVerified = (user: ServiceUser | undefined) => {
-    if (!user || !user.roles) return false;
-    if (user.roles.includes('provider')) return user.providerProfile?.verification?.status === 'approved';
-    if (user.roles.includes('seeker')) return user.seekerProfile?.verification?.status === 'approved';
-    return false;
+    if (!user) return false;
+    return !!user.isVerified;
   };
 
   return (
@@ -233,6 +233,34 @@ const ServiceDetails: React.FC<ServiceDetailsProps> = ({ service }) => {
                     <CheckCircle className="h-4 w-4 text-green-500 inline" />
                     <span>موثّق</span>
                   </Badge>
+                )}
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Working Days & Time Range */}
+        {(service.workingDays && service.workingDays.length > 0) && (
+          <div className="flex items-center gap-3 p-3 bg-warm-cream rounded-lg">
+            <Clock className="h-5 w-5 text-deep-teal flex-shrink-0" />
+            <div>
+              <div className="text-sm text-deep-teal/70">مواعيد التوفر</div>
+              <div className="font-semibold text-deep-teal">
+                {service.workingDays.map((day: string, idx: number) => (
+                  <span key={day}>{idx > 0 ? '، ' : ''}{
+                    {
+                      sunday: 'الأحد',
+                      monday: 'الاثنين',
+                      tuesday: 'الثلاثاء',
+                      wednesday: 'الأربعاء',
+                      thursday: 'الخميس',
+                      friday: 'الجمعة',
+                      saturday: 'السبت'
+                    }[day] || day
+                  }</span>
+                ))}
+                {service.startTime && service.endTime && (
+                  <span> ({service.startTime} - {service.endTime})</span>
                 )}
               </div>
             </div>

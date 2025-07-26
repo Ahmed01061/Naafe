@@ -193,13 +193,14 @@ class AdminController {
       if (request.status === 'accepted') {
         return res.status(400).json({ success: false, error: { message: 'تم قبول الطلب بالفعل' } });
       }
-      // Update user role
+      // Update user role and providerUpgradeStatus
       const user = await User.findById(request.userId);
       if (!user) return res.status(404).json({ success: false, error: { message: 'المستخدم غير موجود' } });
       if (!user.roles.includes('provider')) {
         user.roles.push('provider');
-        await user.save();
       }
+      user.providerUpgradeStatus = 'accepted';
+      await user.save();
       request.status = 'accepted';
       request.adminExplanation = adminExplanation;
       await request.save();
@@ -217,17 +218,19 @@ class AdminController {
   static async rejectUpgradeRequest(req, res) {
     try {
       const { id } = req.params;
-      const { adminExplanation } = req.body;
-      if (!adminExplanation || !adminExplanation.trim()) {
-        return res.status(400).json({ success: false, error: { message: 'يجب إدخال شرح من الإدارة للرفض' } });
-      }
+      const { rejectionComment } = req.body;
       const request = await UpgradeRequest.findById(id);
       if (!request) return res.status(404).json({ success: false, error: { message: 'الطلب غير موجود' } });
-      if (request.status === 'accepted') {
-        return res.status(400).json({ success: false, error: { message: 'لا يمكن رفض طلب تم قبوله بالفعل' } });
+      if (request.status === 'rejected') {
+        return res.status(400).json({ success: false, error: { message: 'تم رفض الطلب بالفعل' } });
       }
+      // Update user providerUpgradeStatus
+      const user = await User.findById(request.userId);
+      if (!user) return res.status(404).json({ success: false, error: { message: 'المستخدم غير موجود' } });
+      user.providerUpgradeStatus = 'rejected';
+      await user.save();
       request.status = 'rejected';
-      request.adminExplanation = adminExplanation;
+      request.rejectionComment = rejectionComment || '';
       await request.save();
       res.json({ success: true, data: { request } });
     } catch (error) {

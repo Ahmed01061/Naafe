@@ -230,3 +230,25 @@ export const translateLocationToEnglish = (arabicLocation: string): string => {
   )?.[0];
   return englishLocation || arabicLocation;
 }; 
+
+/**
+ * Fetch wrapper with authentication
+ */
+export const fetchWithAuth = async (url: string, token: string, options: RequestInit = {}) => {
+  const headers = {
+    'Content-Type': 'application/json',
+    'Authorization': `Bearer ${token}`,
+    ...options.headers,
+  };
+
+  const response = await fetch(url, {
+    ...options,
+    headers,
+  });
+
+  if (!response.ok) {
+    throw new Error(`HTTP error! status: ${response.status}`);
+  }
+
+  return response.json();
+}; 

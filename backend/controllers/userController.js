@@ -1,6 +1,7 @@
 import userService from '../services/userService.js';
 import { logger } from '../middlewares/logging.middleware.js';
 import UpgradeRequest from '../models/UpgradeRequest.js';
+import jobRequestService from '../services/jobRequestService.js';
 
 class UserController {
   /**
@@ -310,11 +311,230 @@ class UserController {
     }
   }
 
+  /**
+   * Update provider availability
+   * PATCH /api/users/me/availability
+   */
+  async updateAvailability(req, res) {
+    try {
+      const userId = req.user._id;
+      const { workingDays, startTime, endTime } = req.body;
+      const user = await userService.updateAvailability(userId, { workingDays, startTime, endTime });
+      res.status(200).json({
+        success: true,
+        data: { user },
+        message: 'Availability updated successfully',
+        timestamp: new Date().toISOString()
+      });
+    } catch (error) {
+      res.status(400).json({
+        success: false,
+        error: { message: error.message },
+        timestamp: new Date().toISOString()
+      });
+    }
+  }
+
+  /**
+   * Get provider availability
+   * GET /api/users/me/availability
+   */
+  async getAvailability(req, res) {
+    try {
+      const userId = req.user._id;
+      const user = await userService.getCurrentUser(userId);
+      if (!user.providerProfile) {
+        return res.status(404).json({
+          success: false,
+          error: { message: 'Provider profile not found' },
+          timestamp: new Date().toISOString()
+        });
+      }
+      const { workingDays, startTime, endTime } = user.providerProfile;
+      res.status(200).json({
+        success: true,
+        data: { workingDays, startTime, endTime },
+        message: 'Availability fetched successfully',
+        timestamp: new Date().toISOString()
+      });
+    } catch (error) {
+      res.status(400).json({
+        success: false,
+        error: { message: error.message },
+        timestamp: new Date().toISOString()
+      });
+    }
+  }
+
+  // Portfolio: Get own portfolio
+  async getOwnPortfolio(req, res) {
+    try {
+      const user = await userService.getCurrentUser(req.user._id);
+      res.json({ success: true, data: { images: user.portfolio || [] } });
+    } catch (error) {
+      res.status(500).json({ success: false, error: { message: error.message } });
+    }
+  }
+
+  // Portfolio: Add image
+  async addPortfolioImage(req, res) {
+    try {
+      const { imageUrl } = req.body;
+      if (!imageUrl) return res.status(400).json({ success: false, error: { message: 'Missing imageUrl' } });
+      const user = await userService.addPortfolioImage(req.user._id, imageUrl);
+      res.json({ success: true, data: { images: user.portfolio } });
+    } catch (error) {
+      res.status(500).json({ success: false, error: { message: error.message } });
+    }
+  }
+
+  // Portfolio: Remove image
+  async removePortfolioImage(req, res) {
+    try {
+      const { imageUrl } = req.body;
+      if (!imageUrl) return res.status(400).json({ success: false, error: { message: 'Missing imageUrl' } });
+      const user = await userService.removePortfolioImage(req.user._id, imageUrl);
+      res.json({ success: true, data: { images: user.portfolio } });
+    } catch (error) {
+      res.status(500).json({ success: false, error: { message: error.message } });
+    }
+  }
+
+  // Portfolio: Get public user portfolio
+  async getUserPortfolio(req, res) {
+    try {
+      const user = await userService.getPublicUserProfile(req.params.id);
+      res.json({ success: true, data: { images: user.portfolio || [] } });
+    } catch (error) {
+      res.status(500).json({ success: false, error: { message: error.message } });
+    }
+  }
+
+  /**
+   * Get user's public listings/services
+   * GET /api/users/:id/listings
+   */
+  async getUserListings(req, res) {
+    try {
+      const { id } = req.params;
+      const listings = await userService.getUserListings(id);
+
+      res.status(200).json({
+        success: true,
+        data: {
+          listings
+        },
+        message: 'User listings retrieved successfully',
+        timestamp: new Date().toISOString()
+      });
+    } catch (error) {
+      if (error.message.includes('User not found')) {
+        return res.status(404).json({
+          success: false,
+          error: {
+            code: 'NOT_FOUND',
+            message: error.message
+          },
+          timestamp: new Date().toISOString()
+        });
+      }
+
+      logger.error(`Get user listings error: ${error.message}`);
+      res.status(500).json({
+        success: false,
+        error: {
+          code: 'INTERNAL_ERROR',
+          message: 'Failed to retrieve user listings'
+        },
+        timestamp: new Date().toISOString()
+      });
+    }
+  }
+
+  /**
+   * Get user's reviews
+   * GET /api/users/:id/reviews
+   */
+  async getUserReviews(req, res) {
+    try {
+      const { id } = req.params;
+      const reviews = await userService.getUserReviews(id);
+
+      res.status(200).json({
+        success: true,
+        data: {
+          reviews
+        },
+        message: 'User reviews retrieved successfully',
+        timestamp: new Date().toISOString()
+      });
+    } catch (error) {
+      if (error.message.includes('User not found')) {
+        return res.status(404).json({
+          success: false,
+          error: {
+            code: 'NOT_FOUND',
+            message: error.message
+          },
+          timestamp: new Date().toISOString()
+        });
+      }
+
+      logger.error(`Get user reviews error: ${error.message}`);
+      res.status(500).json({
+        success: false,
+        error: {
+          code: 'INTERNAL_ERROR',
+          message: 'Failed to retrieve user reviews'
+        },
+        timestamp: new Date().toISOString()
+      });
+    }
+  }
+
+  /**
+   * Get up to 5 featured premium providers for homepage/category
+   * GET /api/providers/featured
+   */
+  async getFeaturedPremiumProviders(req, res) {
+    try {
+      const providers = await userService.getFeaturedPremiumProviders(5);
+      res.status(200).json({
+        success: true,
+        data: { providers },
+        message: 'Featured premium providers retrieved successfully',
+        timestamp: new Date().toISOString()
+      });
+    } catch (error) {
+      logger.error(`Get featured premium providers error: ${error.message}`);
+      res.status(500).json({
+        success: false,
+        error: { code: 'INTERNAL_ERROR', message: 'Internal server error' },
+        timestamp: new Date().toISOString()
+      });
+    }
+  }
+
+  /**
+   * Get targeted leads for the current provider (premium only)
+   * GET /api/providers/me/targeted-leads
+   */
+  async getTargetedLeads(req, res) {
+    try {
+      const providerId = req.user._id;
+      const filters = req.query;
+      const leads = await jobRequestService.getTargetedLeadsForProvider(providerId, filters);
+      res.status(200).json({ success: true, data: { leads }, message: 'Targeted leads retrieved successfully' });
+    } catch (error) {
+      res.status(400).json({ success: false, error: { message: error.message } });
+    }
+  }
+
   // Admin: Get all users (paginated, filterable)
   async getAllUsers(req, res) {
     try {
-      const { page = 1, limit = 20, search = '', role } = req.query;
-      const result = await userService.getAllUsers({ page, limit, search, role });
+      const { page = 1, limit = 20, search = '', role, isVerified, isBlocked } = req.query;
+      const result = await userService.getAllUsers({ page, limit, search, role, isVerified, isBlocked });
       res.json(result);
     } catch (err) {
       res.status(500).json({ message: 'Failed to fetch users', error: err.message });

@@ -18,7 +18,7 @@ async function testUserEndpoints() {
       email: 'testseeker@example.com',
       password: hashedPassword,
       name: { first: 'John', last: 'Seeker' },
-      phone: '01012345678',
+      phone: '01012345679',
       roles: ['seeker'],
       profile: {
         bio: 'I am a test seeker looking for services'
@@ -29,7 +29,7 @@ async function testUserEndpoints() {
       email: 'testprovider@example.com',
       password: hashedPassword,
       name: { first: 'Jane', last: 'Provider' },
-      phone: '01087654321',
+      phone: '01087654322',
       roles: ['provider'],
       profile: {
         bio: 'I am a test provider offering various services'
@@ -85,6 +85,65 @@ async function testUserEndpoints() {
       console.log('✅ getUserStats works:', stats.role);
     } catch (error) {
       console.error('❌ getUserStats failed:', error.message);
+    }
+
+    // Test getAllUsers with filters
+    try {
+      // Create additional test users with different verification and block status
+      const verifiedUser = new User({
+        email: 'verified@example.com',
+        password: hashedPassword,
+        name: { first: 'Verified', last: 'User' },
+        phone: '01011111113',
+        roles: ['seeker'],
+        isVerified: true,
+        isBlocked: false
+      });
+
+      const blockedUser = new User({
+        email: 'blocked@example.com',
+        password: hashedPassword,
+        name: { first: 'Blocked', last: 'User' },
+        phone: '01022222224',
+        roles: ['seeker'],
+        isVerified: false,
+        isBlocked: true
+      });
+
+      await verifiedUser.save();
+      await blockedUser.save();
+
+      // Test verified filter
+      const verifiedUsers = await userService.getAllUsers({ 
+        page: 1, 
+        limit: 10, 
+        isVerified: 'true' 
+      });
+      console.log('✅ Verified filter works:', verifiedUsers.users.length, 'verified users found');
+
+      // Test blocked filter
+      const blockedUsers = await userService.getAllUsers({ 
+        page: 1, 
+        limit: 10, 
+        isBlocked: 'true' 
+      });
+      console.log('✅ Blocked filter works:', blockedUsers.users.length, 'blocked users found');
+
+      // Test unverified filter
+      const unverifiedUsers = await userService.getAllUsers({ 
+        page: 1, 
+        limit: 10, 
+        isVerified: 'false' 
+      });
+      console.log('✅ Unverified filter works:', unverifiedUsers.users.length, 'unverified users found');
+
+      // Clean up additional test data
+      await User.deleteMany({ 
+        email: { $in: ['verified@example.com', 'blocked@example.com'] } 
+      });
+
+    } catch (error) {
+      console.error('❌ getAllUsers filter test failed:', error.message);
     }
 
     // Clean up test data

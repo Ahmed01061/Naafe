@@ -58,12 +58,13 @@ router.patch('/:offerId',
 /**
  * @route   POST /api/offers/:offerId/accept
  * @desc    Accept an offer (only job request owner can accept)
- * @access  Private (Job request owner only - can be seeker or provider)
+ * @access  Private (Job request owner only)
  * @param   {string} offerId - ID of the offer to accept
- * @returns {object} Accepted offer with updated status and conversation details
+ * @returns {object} Accepted offer with updated status
  */
 router.post('/:offerId/accept', 
   authenticateToken, 
+  requireRole(['seeker']),
   offerIdValidation,
   handleValidationErrors,
   offerController.acceptOffer
@@ -72,12 +73,13 @@ router.post('/:offerId/accept',
 /**
  * @route   POST /api/offers/:offerId/reject
  * @desc    Reject an offer (only job request owner can reject)
- * @access  Private (Job request owner only - can be seeker or provider)
+ * @access  Private (Job request owner only)
  * @param   {string} offerId - ID of the offer to reject
  * @returns {object} Rejected offer with updated status
  */
 router.post('/:offerId/reject', 
   authenticateToken, 
+  requireRole(['seeker']),
   offerIdValidation,
   handleValidationErrors,
   offerController.rejectOffer
@@ -96,6 +98,109 @@ router.delete('/:offerId',
   offerIdValidation,
   handleValidationErrors,
   offerController.deleteOffer
+);
+
+/**
+ * @route   PATCH /api/offers/:offerId/negotiation
+ * @desc    Update negotiation terms for an offer
+ * @access  Private (Provider or Seeker)
+ */
+router.patch('/:offerId/negotiation',
+  authenticateToken,
+  requireRole(['provider', 'seeker']),
+  offerIdValidation,
+  handleValidationErrors,
+  offerController.updateNegotiationTerms
+);
+
+/**
+ * @route   POST /api/offers/:offerId/confirm-negotiation
+ * @desc    Confirm negotiation terms for an offer (by either party)
+ * @access  Private (Provider or Seeker)
+ */
+router.post('/:offerId/confirm-negotiation',
+  authenticateToken,
+  requireRole(['provider', 'seeker']),
+  offerIdValidation,
+  handleValidationErrors,
+  offerController.confirmNegotiation
+);
+
+/**
+ * @route   POST /api/offers/:offerId/reset-confirmation
+ * @desc    Reset negotiation confirmations for an offer
+ * @access  Private (Provider or Seeker)
+ */
+router.post('/:offerId/reset-confirmation',
+  authenticateToken,
+  requireRole(['provider', 'seeker']),
+  offerIdValidation,
+  handleValidationErrors,
+  offerController.resetNegotiationConfirmation
+);
+
+/**
+ * @route   GET /api/offers/:offerId/negotiation-history
+ * @desc    Get negotiation history for an offer
+ * @access  Private (Provider or Seeker)
+ */
+router.get('/:offerId/negotiation-history',
+  authenticateToken,
+  offerIdValidation,
+  handleValidationErrors,
+  offerController.getNegotiationHistory
+);
+
+/**
+ * @route   POST /api/offers/:offerId/process-payment
+ * @desc    Process escrow payment for an offer
+ * @access  Private (Seeker only)
+ */
+router.post('/:offerId/process-payment',
+  authenticateToken,
+  requireRole(['seeker']),
+  offerIdValidation,
+  handleValidationErrors,
+  offerController.processEscrowPayment
+);
+
+/**
+ * @route   POST /api/offers/:offerId/complete
+ * @desc    Mark service as completed and release funds
+ * @access  Private (Seeker only)
+ */
+router.post('/:offerId/complete',
+  authenticateToken,
+  requireRole(['seeker']),
+  offerIdValidation,
+  handleValidationErrors,
+  offerController.markServiceCompleted
+);
+
+/**
+ * @route   POST /api/offers/:offerId/cancel-request
+ * @desc    Request service cancellation
+ * @access  Private (Seeker or Provider)
+ */
+router.post('/:offerId/cancel-request',
+  authenticateToken,
+  requireRole(['seeker', 'provider']),
+  offerIdValidation,
+  handleValidationErrors,
+  offerController.requestCancellation
+);
+
+/**
+ * @route   POST /api/offers/:offerId/process-cancellation
+ * @desc    Process cancellation request
+ * @access  Private (Admin only)
+ */
+router.post('/:offerId/process-cancellation',
+  authenticateToken,
+  requireRole(['admin']),
+  offerIdValidation,
+  handleValidationErrors,
+  offerController.processCancellation
 );
 
 export default router; 

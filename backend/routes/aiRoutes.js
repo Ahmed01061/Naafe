@@ -71,7 +71,7 @@ router.post('/assist-form', authenticateToken, async (req, res) => {
  */
 router.post('/pricing-guidance', authenticateToken, async (req, res) => {
   try {
-    const { category, serviceType, location, userBudget, marketData } = req.body;
+    const { category, serviceType, location, userBudget, marketData, rating } = req.body;
     
     if (!category || !serviceType) {
       return res.status(400).json({
@@ -88,7 +88,9 @@ router.post('/pricing-guidance', authenticateToken, async (req, res) => {
       serviceType,
       location,
       userBudget,
-      marketInfo
+      marketInfo,
+      req.body.skills || [],
+      rating
     );
 
     res.json({

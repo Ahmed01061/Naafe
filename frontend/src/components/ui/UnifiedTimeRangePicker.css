@@ -1,0 +1,36 @@
+.custom-timepicker-placeholder .ant-picker-input input::placeholder {
+  color: #0e1b18 !important; /* Use the project's dark text color */
+  opacity: 1 !important;
+}
+
+.custom-timepicker-placeholder .ant-picker-input input {
+  color: #0e1b18;
+}
+
+/* Clock icon (suffix) and arrow */
+.custom-timepicker-placeholder .ant-picker-suffix,
+.custom-timepicker-placeholder .ant-picker-clear,
+.custom-timepicker-placeholder .ant-picker-range-separator {
+  color: #0e1b18 !important;
+  fill: #0e1b18 !important;
+}
+
+.custom-timepicker-placeholder .ant-picker-suffix svg,
+.custom-timepicker-placeholder .ant-picker-clear svg {
+  color: #0e1b18 !important;
+  fill: #0e1b18 !important;
+}
+
+.custom-timepicker-contrast .ant-picker-input input,
+.custom-timepicker-contrast .ant-picker-input input::placeholder,
+.custom-timepicker-contrast .ant-picker-suffix,
+.custom-timepicker-contrast .ant-picker-clear,
+.custom-timepicker-contrast .ant-picker-range-separator {
+  color: #000 !important;
+  fill: #000 !important;
+}
+.custom-timepicker-contrast .ant-picker-suffix svg,
+.custom-timepicker-contrast .ant-picker-clear svg {
+  color: #000 !important;
+  fill: #000 !important;
+} 

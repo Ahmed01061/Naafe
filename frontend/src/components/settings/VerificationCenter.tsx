@@ -5,6 +5,7 @@ import Badge from '../ui/Badge';
 import SettingsSection from './SettingsSection';
 import SettingsCard from './SettingsCard';
 import FormInput from '../ui/FormInput';
+import { useAuth } from '../../contexts/AuthContext';
 
 const steps = [
   'معلومات البطاقة الشخصية',
@@ -14,6 +15,9 @@ const steps = [
 ];
 
 const VerificationCenter: React.FC = () => {
+  const { accessToken } = useAuth();
+  // Remove isProvider check, allow all users
+
   const [step, setStep] = useState(0);
   const [idFront, setIdFront] = useState<string | null>(null);
   const [idBack, setIdBack] = useState<string | null>(null);
@@ -32,19 +36,39 @@ const VerificationCenter: React.FC = () => {
     (async () => {
       setLoading(true);
       try {
-        const res = await fetch('/api/verification/status');
+        const res = await fetch('/api/verification/status', {
+          credentials: 'include',
+          headers: {
+            'Content-Type': 'application/json',
+            ...(accessToken && { Authorization: `Bearer ${accessToken}` }),
+          },
+        });
         const data = await res.json();
+        
         if (data.success && data.data) {
+          // User has a verification record
           setStatus(data.data.status || 'not_submitted');
           setExplanation(data.data.explanation || '');
+        } else if (res.status === 400 && data.error?.message === 'No verification found') {
+          // User has no verification record yet - this is normal for new users
+          setStatus('not_submitted');
+          setExplanation('');
+        } else {
+          // Other error cases
+          console.warn('Verification status check failed:', data);
+          setStatus('not_submitted');
+          setExplanation('');
         }
-      } catch {
-        // ignore
+      } catch (error) {
+        // Network or other errors
+        console.warn('Verification status check error:', error);
+        setStatus('not_submitted');
+        setExplanation('');
       } finally {
         setLoading(false);
       }
     })();
-  }, []);
+  }, [accessToken]);
 
   const handleFileUpload = async (file: File, setter: (url: string) => void) => {
     setLoading(true);
@@ -84,7 +108,11 @@ const VerificationCenter: React.FC = () => {
       };
       const res = await fetch('/api/verification/request', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        headers: { 
+          'Content-Type': 'application/json',
+          ...(accessToken && { Authorization: `Bearer ${accessToken}` }),
+        },
         body: JSON.stringify(payload),
       });
       const data = await res.json();

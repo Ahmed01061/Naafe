@@ -77,6 +77,8 @@ const ServiceDetailsContainer: React.FC<ServiceDetailsContainerProps> = ({
                   responses={offers} 
                   onOffersRefresh={onOffersRefresh}
                   jobRequestStatus={service.status}
+                  jobRequestId={service._id}
+                  seekerId={service.seeker?._id || service.seeker?.id || service.seeker}
                 />
               );
             } catch (error) {

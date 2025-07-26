@@ -78,6 +78,24 @@ router.get('/:id', adController.getAdById);
 router.patch('/:id/status', authenticateToken, adController.updateAdStatus);
 
 /**
+ * @route   POST /api/ads/:id/cancel
+ * @desc    Cancel ad and process refund
+ * @access  Private (Owner)
+ * @param   {string} id - Ad ID
+ * @returns {object} Cancellation result with refund details
+ */
+router.post('/:id/cancel', authenticateToken, adController.cancelAd);
+
+/**
+ * @route   POST /api/ads/:id/refund-estimate
+ * @desc    Get refund estimate for ad cancellation
+ * @access  Private (Owner)
+ * @param   {string} id - Ad ID
+ * @returns {object} Refund estimate details
+ */
+router.post('/:id/refund-estimate', authenticateToken, adController.getRefundEstimate);
+
+/**
  * @route   DELETE /api/ads/:id
  * @desc    Delete ad
  * @access  Private (Owner or Admin)

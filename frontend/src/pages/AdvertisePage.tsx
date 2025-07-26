@@ -1,10 +1,12 @@
-import React, { useState } from 'react';
-import { Star, Grid3X3, Layout, X, CheckCircle, TrendingUp, Target, Upload } from 'lucide-react';
+import React, { useState, useEffect } from 'react';
+import { Star, Grid3X3, Layout, X, CheckCircle, TrendingUp, Target, Upload, MapPin, Users } from 'lucide-react';
 import PageLayout from '../components/layout/PageLayout';
 import Button from '../components/ui/Button';
 import BaseCard from '../components/ui/BaseCard';
 import { FormInput, FormTextarea } from '../components/ui';
 import { useAuth } from '../contexts/AuthContext';
+import { useLocation } from 'react-router-dom';
+import { adPlacements, getPlacementByLocation } from '../data/adPlacements';
 
 // Ad plan data structure
 const adPlans = [
@@ -109,22 +111,36 @@ const paymentSteps = [
 
 const AdvertisePage: React.FC = () => {
   const { accessToken } = useAuth();
-  const [openFaqIndex, setOpenFaqIndex] = useState<number | null>(0);
+  const location = useLocation();
   const [selectedPlan, setSelectedPlan] = useState<string | null>(null);
   const [selectedDuration, setSelectedDuration] = useState<'daily' | 'weekly' | 'monthly'>('daily');
+  const [selectedPlacement, setSelectedPlacement] = useState<string | null>(null);
   const [showAdForm, setShowAdForm] = useState(false);
   const [adFormData, setAdFormData] = useState({
     title: '',
     description: '',
     imageUrl: '',
-    targetUrl: ''
+    targetUrl: '',
+    location: '',
+    type: ''
   });
   const [imageUploading, setImageUploading] = useState(false);
 
-  // Toggle FAQ item
-  const toggleFaq = (index: number) => {
-    setOpenFaqIndex(openFaqIndex === index ? null : index);
-  };
+  // Handle pre-selected placement from navigation
+  useEffect(() => {
+    if (location.state?.selectedPlacement) {
+      const placement = adPlacements.find(p => p.id === location.state.selectedPlacement);
+      if (placement) {
+        setSelectedPlacement(placement.id);
+        setAdFormData(prev => ({
+          ...prev,
+          location: placement.location,
+          type: placement.type
+        }));
+        setShowAdForm(true);
+      }
+    }
+  }, [location.state]);
 
   const handleSelectPlan = (planId: string) => {
     setSelectedPlan(planId);
@@ -196,16 +212,31 @@ const AdvertisePage: React.FC = () => {
     }
 
     try {
+      // Get placement configuration
+      const placement = selectedPlacement ? 
+        adPlacements.find(p => p.id === selectedPlacement) : 
+        getPlacementByLocation(adFormData.location, adFormData.type);
+
+      if (!placement) {
+        alert('يرجى اختيار موقع الإعلان');
+        return;
+      }
+
       // Create the ad with form data
       const adData = {
         type: selectedPlan,
         title: adFormData.title,
         description: adFormData.description,
         imageUrl: adFormData.imageUrl || 'https://via.placeholder.com/300x200',
-        targetUrl: adFormData.targetUrl || '/categories',
+        targetUrl: adFormData.targetUrl || 'https://example.com', // Changed from '/categories' to a proper external URL
         duration: selectedDuration,
+        placement: {
+          id: placement.id,
+          location: placement.location,
+          type: placement.type
+        },
         targeting: {
-          locations: [],
+          locations: [placement.location],
           categories: [],
           keywords: []
         }
@@ -227,7 +258,7 @@ const AdvertisePage: React.FC = () => {
       }
 
       // Then create checkout session
-      const checkoutResponse = await fetch(`/api/payment/promotion-checkout/${createData.data._id}`, {
+      const checkoutResponse = await fetch(`/api/ads/${createData.data._id}/checkout`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -548,7 +579,6 @@ const AdvertisePage: React.FC = () => {
             <p className="text-lg text-text-secondary mb-12 max-w-2xl mx-auto">
               منصتنا تجذب الآلاف من العملاء الباحثين عن خدمات عالية الجودة. الإعلان معنا يضعك في مقدمة المنافسة.
             </p>
-            
             {/* Statistics Highlight */}
             <div className="bg-gradient-to-r from-deep-teal to-accent rounded-2xl p-12 text-white shadow-xl mb-12">
               <div className="text-6xl font-extrabold mb-4">3x</div>
@@ -556,19 +586,7 @@ const AdvertisePage: React.FC = () => {
                 نسبة ظهور أعلى من الحسابات العادية
               </p>
             </div>
-
-            {/* Success Story */}
-            <div>
-              <h3 className="text-2xl font-bold text-deep-teal mb-4">قصص نجاح</h3>
-              <div className="max-w-3xl mx-auto italic text-text-secondary">
-                <p>
-                  "بعد استخدام الإعلان المميز، زادت طلبات الخدمة لدي بنسبة 200% في أسبوع واحد فقط. كانت أفضل استثمار قمت به لعملي."
-                </p>
-                <p className="mt-2 font-bold text-deep-teal">
-                  - سارة، مصممة جرافيك
-                </p>
-              </div>
-            </div>
+            {/* Success Story section removed */}
           </div>
         </section>
 
@@ -592,70 +610,40 @@ const AdvertisePage: React.FC = () => {
           </div>
         </section>
 
-        {/* FAQ Section */}
-        <section className="mb-16">
-          <h2 className="text-3xl font-bold text-deep-teal text-center mb-12">أسئلة شائعة</h2>
-          <div className="max-w-3xl mx-auto space-y-4">
-            {faqData.map((faq, index) => (
+        {/* FAQ Section - Unified with Pricing Page */}
+        <section className="bg-light-cream rounded-2xl p-8 mb-16">
+          <h2 className="text-2xl font-bold text-deep-teal text-center mb-8">الأسئلة الشائعة</h2>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-8 max-w-4xl mx-auto">
+            {faqData.map((faq) => (
               <BaseCard key={faq.id} className="p-6">
-                                  <button
-                    className="flex w-full cursor-pointer items-center justify-between font-semibold text-right"
-                    onClick={() => toggleFaq(index)}
-                    aria-expanded={openFaqIndex === index}
-                  >
-                  <span className="text-lg text-deep-teal">
-                    {openFaqIndex === index ? '−' : '+'}
-                  </span>
-                  <span className="flex-1 text-deep-teal">{faq.question}</span>
-                </button>
-                {openFaqIndex === index && (
-                  <div className="mt-4 text-text-secondary border-t border-gray-200 pt-4">
-                    {faq.answer}
-                  </div>
-                )}
+                <h3 className="font-bold text-deep-teal mb-2 text-lg">{faq.question}</h3>
+                <p className="text-text-primary text-sm">{faq.answer}</p>
               </BaseCard>
             ))}
           </div>
         </section>
 
-        {/* Contact Section */}
-        <section id="contact" className="bg-gradient-to-r from-deep-teal/5 to-accent/5 rounded-2xl p-8">
-          <div className="text-center">
-            <h2 className="text-2xl font-bold text-deep-teal mb-4">
-              تحتاج مساعدة؟
-            </h2>
-            <p className="text-lg text-text-secondary mb-6">
-              فريق الدعم لدينا جاهز لمساعدتك في اختيار أفضل خطة إعلانية لعملك
-            </p>
-            <Button
-              variant="primary"
-              size="lg"
-              onClick={() => window.location.href = '/help'}
-            >
-              تواصل مع الدعم
-            </Button>
-          </div>
-        </section>
+        {/* Contact Section removed */}
       </div>
 
       {/* Ad Form Modal */}
       {showAdForm && selectedPlan && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-2xl max-w-md w-full max-h-[90vh] overflow-y-auto shadow-lg">
+        <div className="fixed inset-0 bg-black bg-opacity-60 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-2xl max-w-lg w-full max-h-[90vh] overflow-y-auto shadow-2xl">
             <div className="flex items-center justify-between p-6 border-b border-gray-200">
-              <h3 className="text-lg font-semibold text-deep-teal">إنشاء إعلان جديد</h3>
+              <h3 className="text-xl font-bold text-deep-teal">إنشاء إعلان جديد</h3>
               <Button
                 variant="ghost"
                 size="sm"
                 onClick={() => setShowAdForm(false)}
-                className="rounded-full p-2"
+                className="rounded-full p-2 hover:bg-gray-100"
                 aria-label="إغلاق"
               >
-                <X className="h-5 w-5" />
+                <X className="h-5 w-5 text-deep-teal" />
               </Button>
             </div>
             <div className="p-6">
-              <div className="space-y-4">
+              <div className="space-y-6">
                 <FormInput
                   label="عنوان الإعلان *"
                   value={adFormData.title}
@@ -672,15 +660,51 @@ const AdvertisePage: React.FC = () => {
                   rows={3}
                   required
                 />
+
+                {/* Placement Selection */}
+                <div>
+                  <label className="block text-base font-semibold text-deep-teal mb-3">
+                    موقع الإعلان *
+                  </label>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    {adPlacements.map((placement) => (
+                      <div
+                        key={placement.id}
+                        className={`p-4 border-2 rounded-lg cursor-pointer transition-all ${
+                          adFormData.location === placement.location && adFormData.type === placement.type
+                            ? 'border-deep-teal bg-deep-teal/10'
+                            : 'border-gray-300 hover:border-deep-teal/50 hover:bg-gray-50'
+                        }`}
+                        onClick={() => setAdFormData(prev => ({
+                          ...prev,
+                          location: placement.location,
+                          type: placement.type
+                        }))}
+                      >
+                        <div className="flex items-center gap-2 mb-2">
+                          <MapPin className="w-5 h-5 text-deep-teal" />
+                          <span className="font-bold text-base text-deep-teal">{placement.name}</span>
+                        </div>
+                        <div className="flex items-center justify-between text-sm text-deep-teal/80">
+                          <span>يبدأ من {placement.pricing[selectedDuration]} جنيه</span>
+                          <span className="flex items-center gap-1">
+                            <Users className="w-4 h-4" />
+                            {placement.maxAds} إعلان
+                          </span>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
                 
                 {/* Image Upload */}
                 <div>
-                  <label className="block text-sm font-medium text-deep-teal mb-2">
+                  <label className="block text-base font-semibold text-deep-teal mb-3">
                     صورة الإعلان
                   </label>
                   <div className="border-2 border-dashed border-gray-300 rounded-lg p-6 text-center hover:border-deep-teal transition-colors">
                     {adFormData.imageUrl ? (
-                      <div className="space-y-2">
+                      <div className="space-y-3">
                         <img 
                           src={adFormData.imageUrl} 
                           alt="Ad preview" 
@@ -690,14 +714,15 @@ const AdvertisePage: React.FC = () => {
                           variant="outline"
                           size="sm"
                           onClick={() => setAdFormData(prev => ({ ...prev, imageUrl: '' }))}
+                          className="text-deep-teal border-deep-teal hover:bg-deep-teal hover:text-white"
                         >
                           تغيير الصورة
                         </Button>
                       </div>
                     ) : (
                       <div>
-                        <Upload className="w-8 h-8 text-gray-400 mx-auto mb-2" />
-                        <p className="text-sm text-gray-600 mb-2">
+                        <Upload className="w-10 h-10 text-deep-teal/60 mx-auto mb-3" />
+                        <p className="text-base text-deep-teal/80 mb-3 font-medium">
                           {imageUploading ? 'جاري رفع الصورة...' : 'اضغط لرفع صورة الإعلان (اختياري)'}
                         </p>
                         <input
@@ -707,7 +732,7 @@ const AdvertisePage: React.FC = () => {
                             const file = e.target.files?.[0];
                             if (file) handleImageUpload(file);
                           }}
-                          className="block w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-deep-teal/10 file:text-deep-teal hover:file:bg-deep-teal/20 cursor-pointer"
+                          className="block w-full text-sm text-deep-teal file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-deep-teal file:text-white hover:file:bg-deep-teal/90 cursor-pointer"
                           disabled={imageUploading}
                           title="اختر صورة الإعلان"
                         />
@@ -725,36 +750,47 @@ const AdvertisePage: React.FC = () => {
                 />
                 
                 {/* Order Summary - Enhanced */}
-                <div className="bg-gradient-to-r from-deep-teal/5 to-accent/5 rounded-lg p-4 border border-deep-teal/20">
-                  <h4 className="font-bold text-deep-teal mb-3 text-center">ملخص الطلب</h4>
-                  <div className="space-y-2 text-sm">
-                    <div className="flex justify-between items-center py-2 border-b border-deep-teal/10">
-                      <span className="text-text-secondary">نوع الإعلان:</span>
-                      <span className="font-semibold text-deep-teal">
+                <div className="bg-gradient-to-r from-deep-teal/10 to-accent/10 rounded-lg p-6 border-2 border-deep-teal/30">
+                  <h4 className="font-bold text-deep-teal mb-4 text-center text-lg">ملخص الطلب</h4>
+                  <div className="space-y-3 text-base">
+                    <div className="flex justify-between items-center py-3 border-b border-deep-teal/20">
+                      <span className="font-semibold text-deep-teal/80">نوع الإعلان:</span>
+                      <span className="font-bold text-deep-teal">
                         {selectedPlan === 'featured' ? 'مميز' : selectedPlan === 'sidebar' ? 'جانبي' : 'بانر'}
                       </span>
                     </div>
-                    <div className="flex justify-between items-center py-2 border-b border-deep-teal/10">
-                      <span className="text-text-secondary">المدة:</span>
-                      <span className="font-semibold text-deep-teal">
+                    {adFormData.location && adFormData.type && (
+                      <div className="flex justify-between items-center py-3 border-b border-deep-teal/20">
+                        <span className="font-semibold text-deep-teal/80">الموقع:</span>
+                        <span className="font-bold text-deep-teal">
+                          {adPlacements.find(p => p.location === adFormData.location && p.type === adFormData.type)?.name || 'غير محدد'}
+                        </span>
+                      </div>
+                    )}
+                    <div className="flex justify-between items-center py-3 border-b border-deep-teal/20">
+                      <span className="font-semibold text-deep-teal/80">المدة:</span>
+                      <span className="font-bold text-deep-teal">
                         {selectedDuration === 'daily' ? 'يومي' : selectedDuration === 'weekly' ? 'أسبوعي' : 'شهري'}
                       </span>
                     </div>
-                    <div className="flex justify-between items-center py-2">
-                      <span className="text-text-secondary">السعر:</span>
-                      <span className="font-bold text-lg text-accent">
-                        {adPlans.find(p => p.id === selectedPlan)?.pricing[selectedDuration]} جنيه
+                    <div className="flex justify-between items-center py-3">
+                      <span className="font-semibold text-deep-teal/80">السعر:</span>
+                      <span className="font-bold text-xl text-accent">
+                        {adFormData.location && adFormData.type ? 
+                          adPlacements.find(p => p.location === adFormData.location && p.type === adFormData.type)?.pricing[selectedDuration] :
+                          adPlans.find(p => p.id === selectedPlan)?.pricing[selectedDuration]
+                        } جنيه
                       </span>
                     </div>
                   </div>
                 </div>
 
-                <div className="flex gap-3">
+                <div className="flex gap-4 pt-4">
                   <Button
                     variant="outline"
                     size="lg"
                     onClick={() => setShowAdForm(false)}
-                    className="flex-1"
+                    className="flex-1 text-deep-teal border-deep-teal hover:bg-deep-teal hover:text-white font-semibold"
                   >
                     إلغاء
                   </Button>
@@ -762,7 +798,7 @@ const AdvertisePage: React.FC = () => {
                     variant="primary"
                     size="lg"
                     onClick={handlePurchase}
-                    className="flex-1"
+                    className="flex-1 font-bold text-lg"
                     disabled={!adFormData.title || !adFormData.description}
                   >
                     اشتري الإعلان

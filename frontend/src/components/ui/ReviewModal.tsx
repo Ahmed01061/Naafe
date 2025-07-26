@@ -130,7 +130,7 @@ const ReviewModal: React.FC<ReviewModalProps> = ({
             maxLength={500}
             disabled={loading}
           />
-          <p className="text-xs text-text-secondary text-left">
+          <p className="text-sm text-text-secondary text-left">
             {comment.length}/500
           </p>
         </div>

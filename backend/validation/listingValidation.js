@@ -15,8 +15,6 @@ export const validateCreateListing = [
     .isFloat({ min: 0 }).withMessage('Maximum budget must be a positive number'),
   body('budget.currency')
     .optional().isIn(['EGP', 'USD', 'EUR']).withMessage('Invalid currency'),
-  body('deliveryTimeDays')
-    .isInt({ min: 1 }).withMessage('Delivery time must be at least 1 day'),
   body('status')
     .optional().isIn(['active', 'paused', 'archived']).withMessage('Invalid status'),
 ];
@@ -41,9 +39,6 @@ export const validateUpdateListing = [
     .isFloat({ min: 0 }).withMessage('Maximum budget must be a positive number'),
   body('budget.currency')
     .optional().isIn(['EGP', 'USD', 'EUR']).withMessage('Invalid currency'),
-  body('deliveryTimeDays')
-    .optional()
-    .isInt({ min: 1 }).withMessage('Delivery time must be at least 1 day'),
   body('status')
     .optional().isIn(['active', 'paused', 'archived']).withMessage('Invalid status'),
 ];
@@ -59,7 +54,6 @@ export const validateListingQuery = [
   query('status').optional().isIn(['active', 'paused', 'archived']),
   query('minPrice').optional().isFloat({ min: 0 }),
   query('maxPrice').optional().isFloat({ min: 0 }),
-  query('deliveryTimeDays').optional().isInt({ min: 1 }),
   query('provider').optional().isMongoId(),
   query('search').optional().isString(),
 ];

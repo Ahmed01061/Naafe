@@ -65,3 +65,24 @@ async function addPremiumFields() {
 }
 
 addPremiumFields(); 
+
+// Remove isPremium from all users who are not providers
+import mongoose from 'mongoose';
+import User from '../models/User.js';
+
+async function removePremiumFromNonProviders() {
+  await mongoose.connect(process.env.MONGODB_URI, { useNewUrlParser: true, useUnifiedTopology: true });
+  const result = await User.updateMany(
+    { roles: { $ne: 'provider' }, isPremium: true },
+    { $set: { isPremium: false } }
+  );
+  console.log(`Updated ${result.nModified || result.modifiedCount} non-provider users to isPremium: false`);
+  await mongoose.disconnect();
+}
+
+if (require.main === module) {
+  removePremiumFromNonProviders().catch(err => {
+    console.error('Error updating users:', err);
+    process.exit(1);
+  });
+} 

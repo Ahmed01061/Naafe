@@ -14,21 +14,31 @@ export interface ServiceCategory {
 
 export interface ServiceProvider {
   id: string;
+  providerId?: string; // Provider's user ID for navigation
   name: string;
   rating: number;
   category: string;
   description: string;
+  title?: string;
   location: string;
   startingPrice: number;
   imageUrl: string;
   isPremium: boolean;
   isTopRated: boolean;
   completedJobs: number;
-  isIdentityVerified: boolean;
+  isVerified: boolean;
+  providerUpgradeStatus?: 'none' | 'pending' | 'accepted' | 'rejected';
   availability: {
     days: string[];
     timeSlots: string[];
   };
+  budgetMin: number;
+  budgetMax: number;
+  memberSince: string;
+  skills: string[];
+  workingDays?: string[];
+  startTime?: string;
+  endTime?: string;
 }
 
 export interface ServiceRequest {
@@ -70,6 +80,8 @@ export interface FilterState {
     days: string[];
     timeSlots: string[];
   };
+  workingDays?: string[];
+  timeRange?: [string, string];
 }
 
 export interface SortOption {
@@ -91,8 +103,20 @@ export interface User {
   profile?: {
     bio?: string;
     location?: {
-      address?: string;
-      coordinates?: [number, number];
+      government?: string;
+      city?: string;
+      street?: string;
+      apartmentNumber?: string;
+      additionalInformation?: string;
     };
+  };
+  providerProfile?: {
+    rating?: number;
+    reviewCount?: number;
+    totalJobsCompleted?: number;
+    totalEarnings?: number;
+    verification?: { status: string; method: string | null; documents: string[] };
+    skills?: string[];
+    location?: { city: string; government: string };
   };
 }

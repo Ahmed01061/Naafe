@@ -1,82 +1,20 @@
 import React, { useState, useEffect } from 'react';
-import { 
-  User, 
-  Shield, 
-  Bell, 
-  Sun, 
-  Lock, 
-  Settings as SettingsIcon,
-  Eye,
-  Key,
-  Download,
-  Trash2,
-  CheckCircle,
-  AlertTriangle,
-  Mail,
-  MessageSquare,
-  Smartphone,
-  Megaphone
-} from 'lucide-react';
-import { FormInput, FormTextarea } from "../components/ui";
+import { User, Shield, Key, Trash2, AlertTriangle, CheckCircle, Settings as SettingsIcon } from 'lucide-react';
 import Header from '../components/Header';
 import Footer from '../components/Footer';
-import SettingsNavigation from '../components/settings/SettingsNavigation';
+import { useAuth } from '../contexts/AuthContext';
+import { FormInput, FormTextarea } from "../components/ui";
+import VerificationCenter from '../components/settings/VerificationCenter';
+import UnifiedSelect from '../components/ui/UnifiedSelect';
+import { EGYPT_GOVERNORATES, EGYPT_CITIES } from '../utils/constants';
+import Button from '../components/ui/Button';
 import SettingsSection from '../components/settings/SettingsSection';
 import SettingsCard from '../components/settings/SettingsCard';
-import SettingsToggle from '../components/settings/SettingsToggle';
-import { useAuth } from '../contexts/AuthContext';
-import VerificationCenter from '../components/settings/VerificationCenter';
-
-interface UserSettings {
-  notifications: {
-    app: boolean;
-    email: boolean;
-    sms: boolean;
-    marketing: boolean;
-  };
-  privacy: {
-    profileVisibility: 'public' | 'private' | 'friends';
-    showPhone: boolean;
-    showEmail: boolean;
-    allowMessages: boolean;
-  };
-  theme: {
-    mode: 'light' | 'dark' | 'system';
-    language: 'ar' | 'en';
-  };
-  account: {
-    twoFactorAuth: boolean;
-    sessionTimeout: number;
-    dataRetention: 'indefinite' | '1year' | '6months';
-  };
-}
+import SettingsNavigation from '../components/settings/SettingsNavigation';
 
 const SettingsPage: React.FC = () => {
   const { user, accessToken } = useAuth();
   const [activeSection, setActiveSection] = useState('account');
-  const [settings, setSettings] = useState<UserSettings>({
-    notifications: {
-      app: true,
-      email: false,
-      sms: false,
-      marketing: false
-    },
-    privacy: {
-      profileVisibility: 'public',
-      showPhone: false,
-      showEmail: false,
-      allowMessages: true
-    },
-    theme: {
-      mode: 'system',
-      language: 'ar'
-    },
-    account: {
-      twoFactorAuth: false,
-      sessionTimeout: 30,
-      dataRetention: 'indefinite'
-    }
-  });
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
@@ -96,24 +34,6 @@ const SettingsPage: React.FC = () => {
       description: 'التحقق من الهوية'
     },
     { 
-      id: 'notifications', 
-      label: 'إعدادات الإشعارات', 
-      icon: Bell,
-      description: 'تخصيص الإشعارات'
-    },
-    { 
-      id: 'theme', 
-      label: 'المظهر', 
-      icon: Sun,
-      description: 'اختيار المظهر واللغة'
-    },
-    { 
-      id: 'privacy', 
-      label: 'إعدادات الخصوصية', 
-      icon: Lock,
-      description: 'التحكم في الخصوصية'
-    },
-    { 
       id: 'management', 
       label: 'إدارة الحساب', 
       icon: SettingsIcon,
@@ -122,27 +42,35 @@ const SettingsPage: React.FC = () => {
   ];
 
   const isAdmin = user?.roles?.includes('admin');
+  const isProvider = user?.roles?.includes('provider');
+  const isPremium = !!user?.isPremium;
 
   // Fix address state initialization to avoid type errors
-  const initialLocation = (user?.profile?.location && typeof user.profile.location === 'object') ? user.profile.location : {};
   const [address, setAddress] = useState<{
     government: string;
     city: string;
     street: string;
     apartmentNumber: string;
     additionalInformation: string;
-  }>(
-    {
-      government: initialLocation.government ?? '',
-      city: initialLocation.city ?? '',
-      street: initialLocation.street ?? '',
-      apartmentNumber: initialLocation.apartmentNumber ?? '',
-      additionalInformation: initialLocation.additionalInformation ?? '',
-    }
-  );
+  }>({
+    government: '',
+    city: '',
+    street: '',
+    apartmentNumber: '',
+    additionalInformation: '',
+  });
   const [avatarPreview, setAvatarPreview] = useState(user?.avatarUrl || '');
   const [avatarUrl, setAvatarUrl] = useState(user?.avatarUrl || '');
   const [avatarUploading, setAvatarUploading] = useState(false);
+
+  const [selectedGovernorate, setSelectedGovernorate] = useState('');
+  const [selectedCity, setSelectedCity] = useState('');
+  const [customCity, setCustomCity] = useState('');
+
+  // Update city list when governorate changes
+  const cityOptions = selectedGovernorate
+    ? [...(EGYPT_CITIES[selectedGovernorate] || []), 'أخرى']
+    : [];
 
   const handleAddressChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
     const { name, value } = e.target;
@@ -233,6 +161,24 @@ const SettingsPage: React.FC = () => {
     }
   };
 
+  // Sync address from user context on mount or when user changes
+  useEffect(() => {
+    if (user?.profile?.location) {
+      setAddress({
+        government: user.profile?.location?.government || '',
+        city: user.profile?.location?.city || '',
+        street: user.profile?.location?.street || '',
+        apartmentNumber: user.profile?.location?.apartmentNumber || '',
+        additionalInformation: user.profile?.location?.additionalInformation || '',
+      });
+      // Set dropdowns for UnifiedSelect
+      const govId = EGYPT_GOVERNORATES.find(g => g.name === user.profile?.location?.government)?.id || '';
+      setSelectedGovernorate(govId);
+      setSelectedCity(user.profile?.location?.city || '');
+      setCustomCity(user.profile?.location?.city && !EGYPT_CITIES[govId]?.includes(user.profile?.location?.city) ? user.profile?.location?.city : '');
+    }
+  }, [user]);
+
   // Fetch user settings
   useEffect(() => {
     const fetchSettings = async () => {
@@ -244,8 +190,8 @@ const SettingsPage: React.FC = () => {
         });
         
         if (response.ok) {
-          const data = await response.json();
-          setSettings(data.data.settings);
+          await response.json();
+          // setSettings(data.data.settings); // This line is removed as per the edit hint
         }
       } catch {
         console.error('Error fetching settings');
@@ -260,35 +206,42 @@ const SettingsPage: React.FC = () => {
   }, [accessToken]);
 
   // Update settings
-  const updateSettings = async (newSettings: Partial<UserSettings>) => {
-    setSaving(true);
-    setError('');
-    setSuccess('');
+  // const updateSettings = async (newSettings: Partial<UserSettings>) => { // This function is removed as per the edit hint
+  //   setSaving(true);
+  //   setError('');
+  //   setSuccess('');
+  //
+  //   try {
+  //     const response = await fetch('/api/settings', {
+  //       method: 'PATCH',
+  //       headers: {
+  //         'Content-Type': 'application/json',
+  //         'Authorization': `Bearer ${accessToken}`
+  //       },
+  //       body: JSON.stringify(newSettings)
+  //     });
+  //
+  //     if (response.ok) {
+  //       const data = await response.json();
+  //       setSettings(data.data.settings);
+  //       setSuccess('تم تحديث الإعدادات بنجاح');
+  //     } else {
+  //       const errorData = await response.json();
+  //       setError(errorData.error?.message || 'حدث خطأ أثناء تحديث الإعدادات');
+  //     }
+  //   } catch {
+  //     setError('حدث خطأ في الاتصال');
+  //   } finally {
+  //     setSaving(false);
+  //   }
+  // };
 
-    try {
-      const response = await fetch('/api/settings', {
-        method: 'PATCH',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${accessToken}`
-        },
-        body: JSON.stringify(newSettings)
-      });
-
-      if (response.ok) {
-        const data = await response.json();
-        setSettings(data.data.settings);
-        setSuccess('تم تحديث الإعدادات بنجاح');
-      } else {
-        const errorData = await response.json();
-        setError(errorData.error?.message || 'حدث خطأ أثناء تحديث الإعدادات');
-      }
-    } catch {
-      setError('حدث خطأ في الاتصال');
-    } finally {
-      setSaving(false);
+  useEffect(() => {
+    if (isProvider && isPremium) {
+      // Removed as per new UX decision
     }
-  };
+    // eslint-disable-next-line
+  }, [isProvider, isPremium]);
 
   const renderAccountInformation = () => (
     <SettingsSection
@@ -366,24 +319,53 @@ const SettingsPage: React.FC = () => {
             </div>
           </div>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mt-8">
-            <FormInput
-              id="government"
-              name="government"
+            <UnifiedSelect
+              value={selectedGovernorate}
+              onChange={val => {
+                setSelectedGovernorate(val);
+                setSelectedCity('');
+                setCustomCity('');
+                setAddress(prev => ({ ...prev, government: EGYPT_GOVERNORATES.find(g => g.id === val)?.name || '' }));
+              }}
+              options={EGYPT_GOVERNORATES.map(g => ({ value: g.id, label: g.name }))}
+              placeholder="اختر المحافظة"
+              isSearchable
+              searchPlaceholder="ابحث عن محافظة..."
+              required
               label="المحافظة"
-              placeholder="مثال: القاهرة، الجيزة، الإسكندرية"
-              value={address.government}
-              onChange={handleAddressChange}
               className="w-full"
             />
-            <FormInput
-              id="city"
-              name="city"
+            <UnifiedSelect
+              value={selectedCity}
+              onChange={val => {
+                setSelectedCity(val);
+                setCustomCity('');
+                setAddress(prev => ({ ...prev, city: val === 'أخرى' ? '' : val }));
+              }}
+              options={cityOptions.map(city => ({ value: city, label: city }))}
+              placeholder="اختر المدينة"
+              isSearchable
+              searchPlaceholder="ابحث عن مدينة..."
+              required
               label="المدينة"
-              placeholder="مثال: مدينة نصر، المعادي، الزمالك"
-              value={address.city}
-              onChange={handleAddressChange}
+              disabled={!selectedGovernorate}
               className="w-full"
             />
+            {selectedCity === 'أخرى' && (
+              <FormInput
+                type="text"
+                value={customCity}
+                onChange={e => {
+                  setCustomCity(e.target.value);
+                  setAddress(prev => ({ ...prev, city: e.target.value }));
+                }}
+                placeholder="أدخل اسم المدينة"
+                size="md"
+                className="mt-2 w-full"
+                required
+                label="مدينة أخرى"
+              />
+            )}
             <FormInput
               id="street"
               name="street"
@@ -414,13 +396,13 @@ const SettingsPage: React.FC = () => {
             />
         </div>
         <div className="flex justify-end mt-8">
-          <button 
+          <Button 
               type="submit"
             className="bg-deep-teal text-white font-semibold py-3 px-8 rounded-xl hover:bg-deep-teal/90 transform hover:scale-105 transition-all duration-300 shadow-lg hover:shadow-xl disabled:opacity-50"
             disabled={saving}
           >
             {saving ? 'جاري التحديث...' : 'تحديث المعلومات'}
-          </button>
+          </Button>
         </div>
         </form>
       </SettingsCard>
@@ -441,165 +423,6 @@ const SettingsPage: React.FC = () => {
     )
   );
 
-  const renderNotificationPreferences = () => (
-    <SettingsSection
-      title="إعدادات الإشعارات"
-      description="تخصيص كيفية استلامك للتحديثات والإشعارات"
-      icon={Bell}
-    >
-      <SettingsCard title="إعدادات التواصل">
-        <div className="space-y-6">
-          <SettingsToggle
-            label="إشعارات التطبيق"
-            description="استلام إشعارات للطلبات والتحديثات والعروض الترويجية"
-            checked={settings.notifications.app}
-            onChange={(checked) => updateSettings({ notifications: { ...settings.notifications, app: checked } })}
-            icon={<Bell size={20} />}
-          />
-          
-          <SettingsToggle
-            label="إشعارات البريد الإلكتروني"
-            description="استلام تحديثات البريد الإلكتروني حول حسابك والإعلانات"
-            checked={settings.notifications.email}
-            onChange={(checked) => updateSettings({ notifications: { ...settings.notifications, email: checked } })}
-            icon={<Mail size={20} />}
-          />
-          
-          <SettingsToggle
-            label="إشعارات الرسائل النصية"
-            description="استلام إشعارات مهمة عبر الرسائل النصية"
-            checked={settings.notifications.sms}
-            onChange={(checked) => updateSettings({ notifications: { ...settings.notifications, sms: checked } })}
-            icon={<Smartphone size={20} />}
-          />
-          
-          <SettingsToggle
-            label="الإعلانات التسويقية"
-            description="استلام عروض خاصة وأخبار عن الخدمات الجديدة"
-            checked={settings.notifications.marketing}
-            onChange={(checked) => updateSettings({ notifications: { ...settings.notifications, marketing: checked } })}
-            icon={<Megaphone size={20} />}
-          />
-        </div>
-      </SettingsCard>
-    </SettingsSection>
-  );
-
-  const renderThemeSelection = () => (
-    <SettingsSection
-      title="المظهر"
-      description="اختر المظهر المفضل لديك للحصول على أفضل تجربة بصرية"
-      icon={Sun}
-    >
-      <SettingsCard title="المظهر واللغة">
-        <div className="space-y-6">
-          <div>
-            <h4 className="font-semibold text-text-primary mb-4">المظهر</h4>
-            <div className="flex flex-col sm:flex-row gap-4">
-              {[
-                { value: 'light', label: 'فاتح' },
-                { value: 'dark', label: 'داكن' },
-                { value: 'system', label: 'حسب النظام' }
-              ].map((option) => (
-                <label key={option.value} className="flex items-center gap-3 cursor-pointer p-4 rounded-xl border border-gray-200 hover:border-deep-teal transition-all duration-300 bg-white">
-                  <input
-                    type="radio"
-                    name="theme"
-                    value={option.value}
-                    checked={settings.theme.mode === option.value}
-                    onChange={(e) => updateSettings({ theme: { ...settings.theme, mode: e.target.value as 'light' | 'dark' | 'system' } })}
-                    className="w-4 h-4 text-deep-teal focus:ring-deep-teal"
-                  />
-                  <span className="font-medium text-text-primary">{option.label}</span>
-                </label>
-              ))}
-            </div>
-          </div>
-          
-          <div>
-            <h4 className="font-semibold text-text-primary mb-4">اللغة</h4>
-            <div className="flex flex-col sm:flex-row gap-4">
-              {[
-                { value: 'ar', label: 'العربية' },
-                { value: 'en', label: 'English' }
-              ].map((option) => (
-                <label key={option.value} className="flex items-center gap-3 cursor-pointer p-4 rounded-xl border border-gray-200 hover:border-deep-teal transition-all duration-300 bg-white">
-                  <input
-                    type="radio"
-                    name="language"
-                    value={option.value}
-                    checked={settings.theme.language === option.value}
-                    onChange={(e) => updateSettings({ theme: { ...settings.theme, language: e.target.value as 'ar' | 'en' } })}
-                    className="w-4 h-4 text-deep-teal focus:ring-deep-teal"
-                  />
-                  <span className="font-medium text-text-primary">{option.label}</span>
-                </label>
-              ))}
-            </div>
-          </div>
-        </div>
-      </SettingsCard>
-    </SettingsSection>
-  );
-
-  const renderPrivacySettings = () => (
-    <SettingsSection
-      title="إعدادات الخصوصية"
-      description="التحكم في خصوصيتك وتفضيلات مشاركة البيانات"
-      icon={Lock}
-    >
-      <SettingsCard title="التحكم في الخصوصية">
-        <div className="space-y-4">
-          <div className="flex items-center justify-between p-4 rounded-xl bg-white border border-gray-100 hover:shadow-md transition-all duration-300">
-            <div className="flex items-center gap-4">
-              <div className="bg-deep-teal/10 p-3 rounded-full text-deep-teal">
-                <Eye size={20} />
-              </div>
-              <div>
-                <h4 className="font-semibold text-text-primary">رؤية الملف الشخصي</h4>
-                <p className="text-text-secondary text-sm mt-1">التحكم في من يمكنه رؤية معلومات ملفك الشخصي.</p>
-              </div>
-            </div>
-            <select
-              className="select select-bordered bg-white text-text-primary font-semibold focus:border-deep-teal focus:outline-none"
-              value={settings.privacy.profileVisibility}
-              onChange={(e) => updateSettings({ privacy: { ...settings.privacy, profileVisibility: e.target.value as 'public' | 'private' | 'friends' } })}
-              aria-label="اختر مستوى رؤية الملف الشخصي"
-            >
-              <option value="public">عام</option>
-              <option value="friends">الأصدقاء</option>
-              <option value="private">خاص</option>
-            </select>
-          </div>
-          
-          <SettingsToggle
-            label="إظهار رقم الهاتف"
-            description="السماح للمستخدمين الآخرين برؤية رقم هاتفك"
-            checked={settings.privacy.showPhone}
-            onChange={(checked) => updateSettings({ privacy: { ...settings.privacy, showPhone: checked } })}
-            icon={<Smartphone size={20} />}
-          />
-          
-          <SettingsToggle
-            label="إظهار البريد الإلكتروني"
-            description="السماح للمستخدمين الآخرين برؤية بريدك الإلكتروني"
-            checked={settings.privacy.showEmail}
-            onChange={(checked) => updateSettings({ privacy: { ...settings.privacy, showEmail: checked } })}
-            icon={<Mail size={20} />}
-          />
-          
-          <SettingsToggle
-            label="السماح بالرسائل"
-            description="السماح للمستخدمين الآخرين بإرسال رسائل لك"
-            checked={settings.privacy.allowMessages}
-            onChange={(checked) => updateSettings({ privacy: { ...settings.privacy, allowMessages: checked } })}
-            icon={<MessageSquare size={20} />}
-          />
-        </div>
-      </SettingsCard>
-    </SettingsSection>
-  );
-
   const renderAccountManagement = () => (
     <SettingsSection
       title="إدارة الحساب"
@@ -618,32 +441,13 @@ const SettingsPage: React.FC = () => {
                 <p className="text-text-secondary text-sm mt-1">حافظ على أمان حسابك بكلمة مرور قوية.</p>
               </div>
             </div>
-            <button className="btn btn-outline btn-sm text-deep-teal border-deep-teal hover:bg-deep-teal hover:text-white">
+            <Button
+              variant="outline"
+              size="sm"
+              className="text-deep-teal border-deep-teal hover:bg-deep-teal hover:text-white"
+            >
               تغيير
-            </button>
-          </div>
-          
-          <SettingsToggle
-            label="المصادقة الثنائية"
-            description="إضافة طبقة أمان إضافية لحسابك"
-            checked={settings.account.twoFactorAuth}
-            onChange={(checked) => updateSettings({ account: { ...settings.account, twoFactorAuth: checked } })}
-            icon={<Shield size={20} />}
-          />
-          
-          <div className="flex items-center justify-between p-4 rounded-xl bg-white border border-gray-100 hover:shadow-md transition-all duration-300">
-            <div className="flex items-center gap-4">
-              <div className="bg-deep-teal/10 p-3 rounded-full text-deep-teal">
-                <Download size={20} />
-              </div>
-              <div>
-                <h4 className="font-semibold text-text-primary">تحميل بيانات الحساب</h4>
-                <p className="text-text-secondary text-sm mt-1">احصل على نسخة من جميع بياناتك ونشاطك.</p>
-              </div>
-            </div>
-            <button className="btn btn-outline btn-sm text-deep-teal border-deep-teal hover:bg-deep-teal hover:text-white">
-              تحميل
-            </button>
+            </Button>
           </div>
           
           <div className="flex items-center justify-between p-4 rounded-xl bg-red-50 border border-red-200 hover:shadow-md transition-all duration-300">
@@ -656,9 +460,13 @@ const SettingsPage: React.FC = () => {
                 <p className="text-red-600 text-sm mt-1">حذف حسابك وبياناتك نهائياً.</p>
               </div>
             </div>
-            <button className="btn btn-error btn-sm">
+            <Button
+              variant="outline"
+              size="sm"
+              className="text-deep-teal border-deep-teal hover:bg-deep-teal hover:text-white"
+            >
               حذف
-            </button>
+            </Button>
           </div>
         </div>
       </SettingsCard>
@@ -671,12 +479,6 @@ const SettingsPage: React.FC = () => {
         return renderAccountInformation();
       case 'verification':
         return renderVerificationCenter();
-      case 'notifications':
-        return renderNotificationPreferences();
-      case 'theme':
-        return renderThemeSelection();
-      case 'privacy':
-        return renderPrivacySettings();
       case 'management':
         return renderAccountManagement();
       default:
@@ -732,6 +534,9 @@ const SettingsPage: React.FC = () => {
             )}
             
             {renderContent()}
+
+            {/* Targeted Leads for Premium Providers */}
+            {/* Removed as per new UX decision */}
           </div>
         </main>
       </div>

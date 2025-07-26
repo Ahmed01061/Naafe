@@ -10,6 +10,8 @@ export function useSocket(token?: string) {
   useEffect(() => {
     if (!token) return;
     
+    console.log('Initializing socket connection to:', BACKEND_URL);
+    
     // Create socket instance
     const socket = io(BACKEND_URL, {
       auth: { token },
@@ -18,15 +20,33 @@ export function useSocket(token?: string) {
     });
     socketRef.current = socket;
 
-    const onConnect = () => setConnected(true);
-    const onDisconnect = () => setConnected(false);
+    const onConnect = () => {
+      console.log('Socket connected successfully');
+      setConnected(true);
+    };
+    const onDisconnect = () => {
+      console.log('Socket disconnected');
+      setConnected(false);
+    };
+    const onError = (error: any) => {
+      console.error('Socket connection error:', error);
+    };
+    const onConnectError = (error: any) => {
+      console.error('Socket connect error:', error);
+    };
+    
     socket.on('connect', onConnect);
     socket.on('disconnect', onDisconnect);
+    socket.on('error', onError);
+    socket.on('connect_error', onConnectError);
 
     // Clean up on unmount or token change
     return () => {
+      console.log('Cleaning up socket connection');
       socket.off('connect', onConnect);
       socket.off('disconnect', onDisconnect);
+      socket.off('error', onError);
+      socket.off('connect_error', onConnectError);
       socket.disconnect();
       socketRef.current = null;
     };

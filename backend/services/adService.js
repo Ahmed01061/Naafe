@@ -30,8 +30,8 @@ class AdService {
           throw new Error('Invalid duration');
       }
 
-      // Get pricing based on type and duration
-      const pricing = this.getPricing(adData.type, adData.duration);
+      // Get pricing based on placement type and duration
+      const pricing = this.getPricing(adData.placement.type, adData.duration);
       
       const ad = new Ad({
         ...adData,
@@ -57,9 +57,10 @@ class AdService {
    */
   getPricing(type, duration) {
     const pricing = {
-      featured: { daily: 25, weekly: 150, monthly: 500 },
-      sidebar: { daily: 15, weekly: 90, monthly: 300 },
-      banner: { daily: 35, weekly: 200, monthly: 750 }
+      top: { daily: 35, weekly: 200, monthly: 750 },
+      side: { daily: 25, weekly: 150, monthly: 500 },
+      bottom: { daily: 15, weekly: 90, monthly: 300 },
+      interstitial: { daily: 25, weekly: 150, monthly: 500 } // Same as side
     };
     
     return pricing[type]?.[duration] || 0;
@@ -80,18 +81,13 @@ class AdService {
         throw new Error('Unauthorized');
       }
 
-      // Convert amount to cents (same pattern as paymentController)
-      const amountInCents = Math.round(ad.budget.total * 100);
-      
-      // Ensure minimum amount for Stripe (50 cents = $0.50)
-      const minimumAmountInCents = 50;
-      const finalAmountInCents = Math.max(amountInCents, minimumAmountInCents);
+      // Convert amount to piastres (EGP * 100)
+      const amountInPiastres = Math.round(ad.budget.total * 100);
 
       console.log('Ad checkout amount calculation:', {
         originalAmount: ad.budget.total,
-        amountInCents,
-        minimumAmountInCents,
-        finalAmountInCents
+        amountInPiastres,
+        currency: 'EGP'
       });
 
       const session = await stripe.checkout.sessions.create({
@@ -99,12 +95,12 @@ class AdService {
         line_items: [
           {
             price_data: {
-              currency: 'usd',
+              currency: 'egp',
               product_data: {
-                name: `إعلان ${ad.type === 'featured' ? 'مميز' : ad.type === 'sidebar' ? 'جانبي' : 'بانر'}`,
+                name: `إعلان ${ad.placement.type === 'top' ? 'علوي' : ad.placement.type === 'bottom' ? 'سفلي' : 'داخلي'}`,
                 description: ad.description,
               },
-              unit_amount: finalAmountInCents,
+              unit_amount: amountInPiastres,
             },
             quantity: 1,
           },
@@ -115,11 +111,11 @@ class AdService {
         metadata: {
           adId: adId.toString(),
           userId: userId.toString(),
-          type: ad.type,
+          placementType: ad.placement.type,
+          placementLocation: ad.placement.location,
           duration: ad.duration,
-          originalCurrency: 'EGP',
           originalAmount: ad.budget.total.toString(),
-          convertedAmount: finalAmountInCents.toString()
+          amountInPiastres: amountInPiastres.toString()
         },
         customer_email: ad.advertiserId.email,
       });
@@ -150,12 +146,12 @@ class AdService {
 
       // Add type filter
       if (filters.type) {
-        query.type = filters.type;
+        query['placement.type'] = filters.type;
       }
 
       // Add location targeting
       if (filters.location) {
-        query['targeting.locations'] = { $in: [filters.location] };
+        query['placement.location'] = filters.location;
       }
 
       // Add category targeting
@@ -163,10 +159,13 @@ class AdService {
         query['targeting.categories'] = { $in: [filters.category] };
       }
 
+      // Add limit
+      const limit = filters.limit ? parseInt(filters.limit) : 10;
+
       const ads = await Ad.find(query)
         .populate('advertiserId', 'name avatarUrl')
         .sort({ createdAt: -1 })
-        .limit(10);
+        .limit(limit);
 
       return ads;
     } catch (error) {
@@ -321,6 +320,130 @@ class AdService {
       console.log(`Ad ${adId} payment completed and activated`);
     } catch (error) {
       console.error('Error handling ad payment completion:', error);
+    }
+  }
+
+  /**
+   * Calculate refund amount for ad cancellation
+   * 
+   * Refund Policies:
+   * - Daily: No refund (ads start immediately)
+   * - Weekly: Full refund within 24h, 75% within 3 days, none after
+   * - Monthly: Full refund within 3 days, 75% within 7 days, prorated after
+   */
+  calculateRefundAmount(ad, cancellationDate) {
+    const now = new Date(cancellationDate);
+    const startDate = new Date(ad.startDate);
+    const endDate = new Date(ad.endDate);
+    const totalAmount = ad.budget.total;
+    
+    // Calculate days since ad started
+    const daysSinceStart = Math.floor((now - startDate) / (1000 * 60 * 60 * 24));
+    const totalDays = Math.floor((endDate - startDate) / (1000 * 60 * 60 * 24));
+    
+    let refundAmount = 0;
+    let refundType = 'none';
+    
+    switch (ad.duration) {
+      case 'daily':
+        // No refund for daily ads since they start immediately
+        refundAmount = 0;
+        refundType = 'none';
+        break;
+        
+      case 'weekly':
+        // Full refund within 24h, 75% within 3 days, none after
+        if (daysSinceStart <= 1) {
+          refundAmount = totalAmount;
+          refundType = 'full';
+        } else if (daysSinceStart <= 3) {
+          refundAmount = Math.round(totalAmount * 0.75);
+          refundType = 'partial';
+        }
+        break;
+        
+      case 'monthly':
+        // Full refund within 3 days, 75% within 7 days, prorated after
+        if (daysSinceStart <= 3) {
+          refundAmount = totalAmount;
+          refundType = 'full';
+        } else if (daysSinceStart <= 7) {
+          refundAmount = Math.round(totalAmount * 0.75);
+          refundType = 'partial';
+        } else if (daysSinceStart <= 15) {
+          // Prorated refund for remaining days
+          const remainingDays = totalDays - daysSinceStart;
+          const dailyRate = totalAmount / totalDays;
+          refundAmount = Math.round(remainingDays * dailyRate);
+          refundType = 'prorated';
+        }
+        break;
+    }
+    
+    return { refundAmount, refundType, daysSinceStart };
+  }
+
+  /**
+   * Cancel ad and process refund
+   */
+  async cancelAd(adId, userId) {
+    try {
+      const ad = await Ad.findById(adId);
+      if (!ad) {
+        throw new Error('Ad not found');
+      }
+
+      // Check authorization
+      if (ad.advertiserId.toString() !== userId.toString()) {
+        throw new Error('Unauthorized');
+      }
+
+      // Calculate refund
+      const { refundAmount, refundType, daysSinceStart } = this.calculateRefundAmount(ad, new Date());
+
+      // Update ad status
+      ad.status = 'cancelled';
+      await ad.save();
+
+      // Process refund if eligible
+      let refundResult = null;
+      if (refundAmount > 0 && ad.stripePaymentIntentId) {
+        try {
+          const refund = await stripe.refunds.create({
+            payment_intent: ad.stripePaymentIntentId,
+            amount: Math.round(refundAmount * 100), // Convert to piastres (EGP * 100)
+            metadata: {
+              adId: adId.toString(),
+              userId: userId.toString(),
+              refundType,
+              daysSinceStart: daysSinceStart.toString()
+            }
+          });
+          
+          refundResult = {
+            refundId: refund.id,
+            amount: refundAmount,
+            type: refundType,
+            status: refund.status
+          };
+        } catch (refundError) {
+          console.error('Error processing refund:', refundError);
+          throw new Error('Failed to process refund');
+        }
+      }
+
+      return {
+        success: true,
+        ad: ad,
+        refund: refundResult,
+        message: refundType === 'none' 
+          ? 'تم إلغاء الإعلان. لا يوجد استرداد لأن فترة السماح انتهت.'
+          : refundType === 'full'
+            ? `تم إلغاء الإعلان واسترداد كامل (${refundAmount} جنيه).`
+            : `تم إلغاء الإعلان واسترداد جزئي (${refundAmount} جنيه).`
+      };
+    } catch (error) {
+      throw error;
     }
   }
 }

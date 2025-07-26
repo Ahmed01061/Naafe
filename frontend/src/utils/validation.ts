@@ -130,7 +130,7 @@ export const checkAvailability = async (email?: string, phone?: string): Promise
       return {};
     }
 
-    const response = await fetch('http://localhost:3000/api/auth/check-availability', {
+    const response = await fetch('/api/auth/check-availability', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',

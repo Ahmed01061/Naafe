@@ -79,6 +79,36 @@ class VerificationController {
   }
 
   /**
+   * Admin: Get all verifications (pending, approved, rejected)
+   * GET /api/verification/all
+   */
+  async getAllVerifications(req, res) {
+    try {
+      const { page = 1, limit = 20, status = 'all' } = req.query;
+      
+      const result = await verificationService.getAllVerifications({ page, limit, status });
+      
+      res.status(200).json({
+        success: true,
+        data: result,
+        message: 'All verifications retrieved successfully',
+        timestamp: new Date().toISOString()
+      });
+    } catch (error) {
+      logger.error(`Get all verifications error: ${error.message}`);
+      
+      res.status(500).json({
+        success: false,
+        error: {
+          code: 'INTERNAL_ERROR',
+          message: 'Internal server error'
+        },
+        timestamp: new Date().toISOString()
+      });
+    }
+  }
+
+  /**
    * Admin: Get all pending verifications
    * GET /api/verification/pending
    */

@@ -1,12 +1,21 @@
 import express from 'express';
-import { createCheckoutSession, handleWebhook, getPaymentDetails, checkPaymentStatus } from '../controllers/paymentController.js';
-import { authenticateToken } from '../middlewares/auth.middleware.js';
+import { 
+  handleWebhook, 
+  getPaymentDetails, 
+  checkPaymentStatus, 
+  createEscrowPayment,
+  releaseFundsFromEscrow,
+  requestCancellation,
+  getMyTransactions,
+  getUnifiedTransactions
+} from '../controllers/paymentController.js';
+import { authenticateToken, requireRole } from '../middlewares/auth.middleware.js';
 import adService from '../services/adService.js';
 
 const router = express.Router();
 
-// Create checkout session (protected route)
-router.post('/create-checkout-session', authenticateToken, createCheckoutSession);
+// Create escrow payment session
+router.post('/create-escrow-payment', authenticateToken, requireRole(['seeker']), createEscrowPayment);
 
 // Create checkout session for promotions (ads) - won't trigger ad blockers
 router.post('/promotion-checkout/:adId', authenticateToken, async (req, res) => {
@@ -41,5 +50,17 @@ router.get('/details/:sessionId', authenticateToken, getPaymentDetails);
 
 // Check payment status by conversation ID (protected route)
 router.get('/check-status/:conversationId', authenticateToken, checkPaymentStatus);
+
+// Release funds from escrow
+router.post('/release-funds/:paymentId', authenticateToken, requireRole(['seeker']), releaseFundsFromEscrow);
+
+// Request service cancellation
+router.post('/cancel-service/:offerId', authenticateToken, requireRole(['seeker', 'provider']), requestCancellation);
+
+// Get all transactions for the current user
+router.get('/my-transactions', authenticateToken, getMyTransactions);
+
+// Unified transactions: service, subscription, refund
+router.get('/transactions', authenticateToken, getUnifiedTransactions);
 
 export default router; 

@@ -17,6 +17,7 @@ interface PaymentDetails {
   jobRequestId: string;
   conversationId: string;
   completedAt: string;
+  status: string; // Added status field
 }
 
 const PaymentSuccessPage: React.FC = () => {
@@ -213,23 +214,29 @@ const PaymentSuccessPage: React.FC = () => {
           </div>
 
           {/* Review Section */}
-          <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4 mb-6">
-            <div className="flex items-center gap-3 mb-3">
-              <Star className="w-5 h-5 text-yellow-600" />
-              <h4 className="font-semibold text-yellow-800">تقييم مقدم الخدمة</h4>
+          {paymentDetails.status === 'completed' ? (
+            <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4 mb-6">
+              <div className="flex items-center gap-3 mb-3">
+                <Star className="w-5 h-5 text-yellow-600" />
+                <h4 className="font-semibold text-yellow-800">تقييم مقدم الخدمة</h4>
+              </div>
+              <p className="text-sm text-yellow-700 mb-3">
+                ساعد مقدمي الخدمات الآخرين بكتابة تقييمك عن الخدمة المقدمة
+              </p>
+              <Button
+                variant="outline"
+                onClick={() => setShowReviewModal(true)}
+                className="w-full"
+              >
+                <Star className="w-4 h-4 ml-2" />
+                كتابة تقييم
+              </Button>
             </div>
-            <p className="text-sm text-yellow-700 mb-3">
-              ساعد مقدمي الخدمات الآخرين بكتابة تقييمك عن الخدمة المقدمة
-            </p>
-            <Button
-              variant="outline"
-              onClick={() => setShowReviewModal(true)}
-              className="w-full"
-            >
-              <Star className="w-4 h-4 ml-2" />
-              كتابة تقييم
-            </Button>
-          </div>
+          ) : (
+            <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-6 text-blue-800 text-sm text-center">
+              يمكنك تقييم مقدم الخدمة بعد اكتمال الخدمة وتأكيدك لذلك.
+            </div>
+          )}
 
           {/* Action Buttons */}
           <div className="flex gap-3 justify-center">
@@ -252,7 +259,7 @@ const PaymentSuccessPage: React.FC = () => {
       </div>
 
       {/* Review Modal */}
-      {paymentDetails && (
+      {paymentDetails && paymentDetails.status === 'completed' && (
         <ReviewModal
           isOpen={showReviewModal}
           onClose={() => setShowReviewModal(false)}

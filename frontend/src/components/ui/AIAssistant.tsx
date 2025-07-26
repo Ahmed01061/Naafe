@@ -3,6 +3,7 @@ import { Sparkles, Lightbulb, CheckCircle, AlertCircle } from 'lucide-react';
 import { useAuth } from '../../contexts/AuthContext';
 import Button from './Button';
 import BaseCard from './BaseCard';
+import FormTextarea from './FormTextarea';
 
 interface AIAssistantProps {
   formType: 'service' | 'request';
@@ -12,6 +13,10 @@ interface AIAssistantProps {
   className?: string;
   inputPlaceholder?: string;
   skills?: string[];
+  categories?: string[];
+  governorates?: { id: string; name: string }[];
+  cities?: Record<string, string[]>;
+  rating?: number;
 }
 
 interface AISuggestion {
@@ -38,6 +43,9 @@ const AIAssistant: React.FC<AIAssistantProps> = ({
   className = '',
   inputPlaceholder,
   skills = [],
+  categories,
+  governorates,
+  rating,
 }) => {
   const { accessToken } = useAuth();
   const [isLoading, setIsLoading] = useState(false);
@@ -123,27 +131,58 @@ const AIAssistant: React.FC<AIAssistantProps> = ({
   };
 
   return (
-    <BaseCard className={`p-6 border-l-4 border-[#F5A623] ${className}`}>
+    <BaseCard className={`p-6 border-l-4 border-[#F5A623] bg-gradient-to-br from-white via-orange-50 to-teal-50 shadow-md ${className}`}>
+      {/* Instructions */}
+      <div className="mb-4 p-3 rounded-lg bg-orange-50 border border-orange-200 text-orange-900 text-sm text-right">
+        <span className="font-semibold">تعليمات:</span> اختر الفئة أولاً، وحدد المحافظة والمدينة من القوائم المتاحة، وأضف وصفاً واضحاً للخدمة. الذكاء الاصطناعي على علم بجميع الفئات والمحافظات والمدن المتوفرة ولن يقترح خيارات غير موجودة. أضف أيضاً مواعيد التوفر والوسوم (الكلمات المفتاحية) لتحصل على أفضل اقتراحات.
+        {categories && categories.length > 0 && (
+          <div className="mt-2 text-xs text-orange-800">
+            <span className="font-semibold">الفئات المتاحة:</span> {categories.join('، ')}
+          </div>
+        )}
+        {governorates && governorates.length > 0 && (
+          <div className="mt-1 text-xs text-orange-800">
+            <span className="font-semibold">المحافظات المتاحة:</span> {governorates.map(g => g.name).join('، ')}
+          </div>
+        )}
+      </div>
       <div className="flex items-center gap-2 mb-4">
         <Sparkles className="w-5 h-5 text-[#F5A623]" />
-        <h3 className="text-lg font-bold text-[#0e1b18]">المساعد الذكي</h3>
+        <h3 className="text-lg font-bold text-[#0e1b18]">
+          المساعد الذكي
+        </h3>
       </div>
-
       <div className="space-y-4">
         {/* Input Section */}
+        {/* Show rating first, then skills, above the input (unified order with PricingGuidance) */}
+        {typeof rating === 'number' && (
+          <div className="mb-2 flex items-center gap-2 justify-end">
+            <span className="text-sm font-semibold text-[#0e1b18]">تقييمك الحالي:</span>
+            <span className="text-base font-bold text-[#F5A623]">{rating.toFixed(2)} / 5</span>
+            <span className="text-yellow-400">{'★'.repeat(Math.round(rating))}{'☆'.repeat(5 - Math.round(rating))}</span>
+          </div>
+        )}
+        {skills && skills.length > 0 && (
+          <div className="mb-2 flex flex-wrap gap-2 justify-end">
+            <span className="text-sm font-semibold text-[#0e1b18]">مهاراتك:</span>
+            {skills.map((skill, idx) => (
+              <span key={idx} className="bg-[#F5A623]/10 text-[#F5A623] px-2 py-1 rounded-full text-xs font-cairo border border-[#F5A623]/30">{skill}</span>
+            ))}
+          </div>
+        )}
         <div>
           <label className="block text-sm font-semibold text-[#0e1b18] text-right mb-2">
-            اكتب وصفاً مختصراً للخدمة وسأساعدك في تحسين النموذج
+            اكتب عنواناً مختصراً للخدمة (مثال: سباك لإصلاح تسرب المياه)
           </label>
-          <textarea
+          <FormTextarea
             value={userInput}
             onChange={(e) => setUserInput(e.target.value)}
             placeholder={inputPlaceholder || "مثال: أحتاج سباك محترف لإصلاح تسرب في الحمام..."}
-            className="w-full p-3 border border-gray-300 rounded-lg text-right resize-none"
             rows={3}
+            required
+            label={undefined}
           />
         </div>
-
         {/* Get Assistance Button */}
         <Button
           onClick={getAIAssistance}
@@ -153,17 +192,17 @@ const AIAssistant: React.FC<AIAssistantProps> = ({
           size="sm"
           className="w-full"
         >
-          <Lightbulb className="w-4 h-4 ml-2" />
-          احصل على المساعدة الذكية
+          <div className="flex items-center justify-center gap-2">
+            <Lightbulb className="w-4 h-4" />
+            <span>احصل على المساعدة الذكية</span>
+          </div>
         </Button>
-        
         {/* Category Requirement Notice */}
         {(!category || category.trim() === '') && (
-          <div className="text-xs text-gray-500 text-right">
+          <div className="text-sm text-gray-600 text-right">
             * يجب اختيار الفئة أولاً لاستخدام المساعد الذكي
           </div>
         )}
-
         {/* Error Display */}
         {error && (
           <div className="flex items-center gap-2 p-3 bg-red-50 border border-red-200 rounded-lg">
@@ -171,7 +210,6 @@ const AIAssistant: React.FC<AIAssistantProps> = ({
             <span className="text-red-600 text-sm">{error}</span>
           </div>
         )}
-
         {/* AI Suggestions */}
         {assistance && (
           <div className="space-y-4">
@@ -181,11 +219,12 @@ const AIAssistant: React.FC<AIAssistantProps> = ({
                 <p className="text-blue-800 text-sm text-right">{assistance.helpfulText}</p>
               </div>
             )}
-
             {/* Individual Suggestions */}
             {assistance.suggestions.length > 0 && (
               <div className="space-y-3">
-                <h4 className="font-semibold text-[#0e1b18] text-right">الاقتراحات:</h4>
+                <h4 className="font-semibold text-[#0e1b18] text-right">
+                  الاقتراحات:
+                </h4>
                 {assistance.suggestions.map((suggestion, index) => (
                   <div key={index} className="p-3 bg-gray-50 border border-gray-200 rounded-lg">
                     <div className="flex items-start justify-between gap-3">
@@ -200,26 +239,27 @@ const AIAssistant: React.FC<AIAssistantProps> = ({
                       </Button>
                       <div className="flex-1 text-right">
                         <div className="flex items-center gap-2 mb-1">
-                          <span className="text-xs bg-[#F5A623] text-white px-2 py-1 rounded">
+                          <span className="text-sm bg-[#F5A623] text-white px-2 py-1 rounded">
                             {suggestion.type === 'title' ? 'العنوان' : 
                              suggestion.type === 'description' ? 'الوصف' : 'الكلمات المفتاحية'}
                           </span>
                         </div>
                         <p className="text-sm text-[#0e1b18] mb-1">{suggestion.content}</p>
-                        <p className="text-xs text-gray-600">{suggestion.reasoning}</p>
+                        <p className="text-sm text-gray-600">{suggestion.reasoning}</p>
                       </div>
                     </div>
                   </div>
                 ))}
               </div>
             )}
-
             {/* Enhanced Content */}
             {assistance.enhancedContent && (
               <div className="p-4 bg-green-50 border border-green-200 rounded-lg">
                 <div className="flex items-center gap-2 mb-3">
                   <CheckCircle className="w-4 h-4 text-green-600" />
-                  <h4 className="font-semibold text-green-800">محتوى محسن جاهز</h4>
+                  <h4 className="font-semibold text-green-800">
+                    محتوى محسن جاهز
+                  </h4>
                 </div>
                 <Button
                   onClick={handleApplyEnhancedContent}

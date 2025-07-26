@@ -29,6 +29,9 @@ const FormInput = forwardRef<HTMLInputElement, FormInputProps>(
     className = '',
     disabled = false,
     id,
+    type,
+    value,
+    onChange,
     ...props
   }, ref) => {
     const inputId = id || `input-${Math.random().toString(36).substr(2, 9)}`;
@@ -96,6 +99,9 @@ const FormInput = forwardRef<HTMLInputElement, FormInputProps>(
               className
             )}
             disabled={disabled}
+            type={type}
+            value={value}
+            onChange={onChange}
             {...props}
           />
           

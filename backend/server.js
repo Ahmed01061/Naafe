@@ -14,6 +14,8 @@ const server = http.createServer(app);
 // Initialize Socket.IO
 socketService.initialize(server);
 
+console.log('OPENROUTER_API_KEY:', process.env.OPENROUTER_API_KEY ? process.env.OPENROUTER_API_KEY.slice(0,4) + '...' + process.env.OPENROUTER_API_KEY.slice(-4) : 'undefined');
+
 // Immediately-invoked async function for better error handling
 (async () => {
   try {

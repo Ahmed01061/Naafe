@@ -19,6 +19,7 @@ import paymentRoutes from './routes/paymentRoutes.js';
 import complaintRoutes from './routes/complaintRoutes.js';
 import subscriptionRoutes from './routes/subscriptionRoutes.js';
 import adRoutes from './routes/adRoutes.js';
+import scheduleRoutes from './routes/scheduleRoutes.js';
 import { requestLogger, errorLogger, performanceLogger, securityLogger } from './middlewares/logging.middleware.js';
 
 const app = express();
@@ -31,7 +32,10 @@ app.use(cors({
 })); // Enable CORS
 // Parse JSON for all routes except webhook
 app.use((req, res, next) => {
-  if (req.path === '/api/payment/webhook') {
+  if (
+    req.path === '/api/payment/webhook' ||
+    req.path === '/api/subscriptions/webhook'
+  ) {
     // For Stripe webhooks, we need raw body
     express.raw({ type: 'application/json' })(req, res, next);
   } else {
@@ -71,7 +75,8 @@ app.use('/api/payment', paymentRoutes);
 app.use('/api/complaints', complaintRoutes);
 app.use('/api/subscriptions', subscriptionRoutes);
 app.use('/api/ads', adRoutes);
-app.use('/api', listingRoutes);
+app.use('/api/listings', listingRoutes);
+app.use('/api/schedule', scheduleRoutes);
 
 // Health check endpoint
 app.get('/api/health', (req, res) => {

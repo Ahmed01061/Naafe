@@ -1,5 +1,6 @@
 import Review from '../models/Review.js';
 import User from '../models/User.js';
+import userService from '../services/userService.js';
 
 class ReviewController {
   /**
@@ -41,6 +42,9 @@ class ReviewController {
         serviceListing
       });
       await review.save();
+
+      // Update the reviewed user's rating and review count
+      await userService.updateUserRatingAndReviewCount(reviewedUser);
 
       res.status(201).json({
         success: true,

@@ -107,7 +107,7 @@ const ReportProblemModal: React.FC<ReportProblemModalProps> = ({
             disabled={loading}
           />
           <div className="flex justify-between items-center">
-            <p className="text-xs text-text-secondary">
+            <p className="text-sm text-text-secondary">
               {description.length}/1000
             </p>
             {errors.description && (

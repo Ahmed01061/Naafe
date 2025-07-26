@@ -2,6 +2,8 @@ import express from 'express';
 import AdminController from '../controllers/adminController.js';
 import { authenticateToken, requireRole } from '../middlewares/auth.middleware.js';
 import upload from '../middlewares/upload.js';
+import User from '../models/User.js';
+import userService from '../services/userService.js';
 
 const router = express.Router();
 
@@ -61,6 +63,61 @@ router.post('/upgrade-requests', authenticateToken, requireRole(['admin', 'seeke
     res.json({ success: true, data: { request: newRequest } });
   } catch (error) {
     res.status(500).json({ success: false, error: { message: error.message } });
+  }
+});
+
+/**
+ * Update provider rating (temporary endpoint for testing)
+ * POST /api/admin/update-provider-rating/:userId
+ */
+router.post('/update-provider-rating/:userId', authenticateToken, requireRole(['admin']), async (req, res) => {
+  try {
+    const { userId } = req.params;
+    await userService.updateUserRatingAndReviewCount(userId);
+    
+    res.json({
+      success: true,
+      message: `Updated rating for provider ${userId}`,
+      timestamp: new Date().toISOString()
+    });
+  } catch (error) {
+    res.status(500).json({
+      success: false,
+      error: { message: error.message },
+      timestamp: new Date().toISOString()
+    });
+  }
+});
+
+/**
+ * Update all provider ratings (temporary endpoint for testing)
+ * POST /api/admin/update-all-provider-ratings
+ */
+router.post('/update-all-provider-ratings', authenticateToken, requireRole(['admin']), async (req, res) => {
+  try {
+    const providers = await User.find({ roles: 'provider' });
+    let updatedCount = 0;
+    
+    for (const provider of providers) {
+      try {
+        await userService.updateUserRatingAndReviewCount(provider._id.toString());
+        updatedCount++;
+      } catch (error) {
+        console.error(`Failed to update provider ${provider._id}:`, error.message);
+      }
+    }
+    
+    res.json({
+      success: true,
+      message: `Updated ratings for ${updatedCount} providers`,
+      timestamp: new Date().toISOString()
+    });
+  } catch (error) {
+    res.status(500).json({
+      success: false,
+      error: { message: error.message },
+      timestamp: new Date().toISOString()
+    });
   }
 });
 

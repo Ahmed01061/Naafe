@@ -8,6 +8,11 @@ export interface CreateCheckoutSessionRequest {
   providerId: string;
 }
 
+export interface CreateEscrowPaymentRequest {
+  offerId: string;
+  amount: number;
+}
+
 export interface CreateCheckoutSessionResponse {
   success: boolean;
   data: {
@@ -56,6 +61,97 @@ export const createCheckoutSession = async (
       success: false,
       data: { sessionId: '', url: '' },
       message: 'حدث خطأ أثناء إنشاء جلسة الدفع'
+    };
+  }
+};
+
+// New function for escrow payment
+export const createEscrowPayment = async (
+  data: CreateEscrowPaymentRequest,
+  accessToken: string
+): Promise<CreateCheckoutSessionResponse> => {
+  try {
+    console.log('Making escrow payment request for offer:', data.offerId);
+    
+    const response = await fetch('/api/payment/create-escrow-payment', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${accessToken}`,
+      },
+      body: JSON.stringify(data),
+    });
+
+    if (!response.ok) {
+      const errorText = await response.text();
+      console.error('Escrow payment error:', errorText);
+      return {
+        success: false,
+        data: { sessionId: '', url: '' },
+        message: `HTTP ${response.status}: ${errorText}`
+      };
+    }
+
+    const result = await response.json();
+    return result;
+  } catch (error) {
+    console.error('Error creating escrow payment:', error);
+    return {
+      success: false,
+      data: { sessionId: '', url: '' },
+      message: 'حدث خطأ أثناء إنشاء الدفع للضمان'
+    };
+  }
+};
+
+// Release funds from escrow after service completion
+export const releaseFundsFromEscrow = async (
+  paymentId: string,
+  accessToken: string
+): Promise<{ success: boolean; message?: string }> => {
+  try {
+    const response = await fetch(`/api/payment/release-funds/${paymentId}`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${accessToken}`,
+      }
+    });
+
+    const result = await response.json();
+    return result;
+  } catch (error) {
+    console.error('Error releasing funds from escrow:', error);
+    return {
+      success: false,
+      message: 'حدث خطأ أثناء تحرير الأموال من الضمان'
+    };
+  }
+};
+
+// Request service cancellation
+export const requestCancellation = async (
+  offerId: string,
+  reason: string,
+  accessToken: string
+): Promise<{ success: boolean; message?: string; refundPercentage?: number }> => {
+  try {
+    const response = await fetch(`/api/payment/cancel-service/${offerId}`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${accessToken}`,
+      },
+      body: JSON.stringify({ reason })
+    });
+
+    const result = await response.json();
+    return result;
+  } catch (error) {
+    console.error('Error requesting cancellation:', error);
+    return {
+      success: false,
+      message: 'حدث خطأ أثناء طلب إلغاء الخدمة'
     };
   }
 };

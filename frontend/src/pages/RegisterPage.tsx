@@ -17,6 +17,8 @@ import {
   debounce,
   FieldValidation
 } from '../utils/validation';
+import { Mail, Phone, Lock, Eye, EyeOff, AlertCircle, User } from 'lucide-react';
+import heroImage from '/public/images/hero-section.png';
 
 const initialForm = {
   firstName: '',
@@ -50,6 +52,7 @@ const RegisterPage = () => {
     phone?: { available: boolean; message: string; checking?: boolean };
   }>({});
   const [hasUserInteracted, setHasUserInteracted] = useState(false);
+  const [showPassword, setShowPassword] = useState(false);
 
   // Debounced availability check
   const debouncedAvailabilityCheck = useCallback(
@@ -117,17 +120,22 @@ const RegisterPage = () => {
   useEffect(() => {
     setFieldErrors(prev => {
       const newErrors = { ...prev };
-      
-      // Update email error if availability check shows it's taken
-      if (availabilityStatus.email && !availabilityStatus.email.available) {
-        newErrors.email = { isValid: false, message: availabilityStatus.email.message };
+      // Email
+      if (availabilityStatus.email) {
+        if (!availabilityStatus.email.available) {
+          newErrors.email = { isValid: false, message: availabilityStatus.email.message };
+        } else {
+          newErrors.email = { isValid: true, message: '' };
+        }
       }
-      
-      // Update phone error if availability check shows it's taken
-      if (availabilityStatus.phone && !availabilityStatus.phone.available) {
-        newErrors.phoneNumber = { isValid: false, message: availabilityStatus.phone.message };
+      // Phone
+      if (availabilityStatus.phone) {
+        if (!availabilityStatus.phone.available) {
+          newErrors.phoneNumber = { isValid: false, message: availabilityStatus.phone.message };
+        } else {
+          newErrors.phoneNumber = { isValid: true, message: '' };
+        }
       }
-      
       return newErrors;
     });
   }, [availabilityStatus]);
@@ -335,31 +343,49 @@ const RegisterPage = () => {
   };
 
   return (
-    <div className="min-h-screen bg-[#F5E6D3] flex items-center justify-center p-4 font-cairo" dir="rtl">
-      <div className="w-full max-w-md">
-        <BaseCard className="bg-white rounded-2xl shadow-xl p-6 sm:p-8 md:p-10 border border-gray-200">
-          {/* Logo/Title */}
-          <div className="text-center mb-8">
-            <h1 className="text-4xl font-extrabold text-[#0e1b18] font-jakarta">Naafe'</h1>
-          </div>
-          <form onSubmit={handleSubmit} className="space-y-6" autoComplete="off">
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-              <div>
+    <div className="min-h-screen flex flex-col md:flex-row bg-gradient-to-br from-[#F5E6D3] via-[#FDF8F0] to-[#F5E6D3] font-cairo" dir="rtl">
+      {/* Hero Section (left on desktop, top on mobile) */}
+      <div className="hidden md:flex flex-col justify-center items-center w-1/2 bg-gradient-to-br from-[#F5E6D3] to-[#FDF8F0] p-12">
+        <div className="flex flex-row items-center gap-4 mb-6">
+          <img src="/public/images/logo-no-bg.png" alt="Naafe Logo" className="w-20 h-20" />
+          <span className="text-4xl font-extrabold text-[#0e1b18] font-arabic">نافع</span>
+        </div>
+        <img src={heroImage} alt="Hero" className="max-w-xs w-full mb-8 drop-shadow-xl" />
+        <h2 className="text-3xl font-extrabold text-deep-teal mb-2">انضم إلى نافِع</h2>
+        <p className="text-lg text-text-secondary text-center max-w-sm">ابدأ رحلتك في منصة الخدمات الأسرع والأكثر أمانًا في مصر.</p>
+      </div>
+      {/* Form Section */}
+      <div className="flex-1 flex items-center justify-center p-4 bg-white/80 shadow-xl md:rounded-l-3xl">
+        <div className="w-full max-w-md">
+          <BaseCard className="bg-white rounded-2xl shadow-xl p-6 sm:p-8 md:p-10 border border-gray-200">
+            {/* No title at the top of the form card for minimalist look */}
+            {/* General Error */}
+            {fieldErrors.general?.message && <div className="text-red-600 text-sm text-center bg-red-50 p-3 rounded-lg border border-red-200 mb-4 animate-fade-in">{fieldErrors.general.message}</div>}
+            <form onSubmit={handleSubmit} className="space-y-6" autoComplete="off">
+              {/* First Name Field */}
+              <div className="w-full">
                 <label className="block text-sm font-semibold text-[#0e1b18] text-right mb-2" htmlFor="firstName">الاسم الأول</label>
-                <FormInput
-                  type="text"
-                  id="firstName"
-                  name="firstName"
-                  value={formData.firstName}
-                  onChange={handleInputChange}
-                  placeholder="الاسم الأول"
-                  className={`w-full bg-gray-50 border-2 rounded-xl text-[#0e1b18] text-right placeholder-gray-500 focus:border-[#2D5D4F] focus:bg-white focus:outline-none transition-colors duration-200 ${getBorderColor('firstName')}`}
-                  required
-                  autoComplete="given-name"
-                />
-                {fieldErrors.firstName?.message && <p className="text-red-600 text-sm text-right mt-1">{fieldErrors.firstName.message}</p>}
+                <div className="relative flex items-center w-full">
+                  <FormInput
+                    type="text"
+                    id="firstName"
+                    name="firstName"
+                    value={formData.firstName}
+                    onChange={handleInputChange}
+                    placeholder="أدخل اسمك الأول"
+                    className={`w-full bg-gray-50 border-2 pr-12 pl-4 py-3 rounded-xl text-[#0e1b18] text-right placeholder-gray-400 focus:bg-white focus:outline-none transition-colors duration-200 ${getBorderColor('firstName')}`}
+                    required
+                    autoComplete="given-name"
+                  />
+                  <User className="absolute right-4 top-1/2 transform -translate-y-1/2 h-5 w-5 text-deep-teal pointer-events-none" />
+                  {fieldErrors.firstName?.message && (
+                    <AlertCircle className="absolute left-4 top-1/2 transform -translate-y-1/2 h-5 w-5 text-red-500 animate-fade-in pointer-events-none" />
+                  )}
+                </div>
+                {fieldErrors.firstName?.message && <p className="text-red-600 text-sm text-right mt-1 animate-fade-in">{fieldErrors.firstName.message}</p>}
               </div>
-              <div>
+              {/* Last Name Field */}
+              <div className="w-full">
                 <label className="block text-sm font-semibold text-[#0e1b18] text-right mb-2" htmlFor="lastName">اسم العائلة</label>
                 <FormInput
                   type="text"
@@ -367,135 +393,138 @@ const RegisterPage = () => {
                   name="lastName"
                   value={formData.lastName}
                   onChange={handleInputChange}
-                  placeholder="اسم العائلة"
-                  className={`w-full bg-gray-50 border-2 rounded-xl text-[#0e1b18] text-right placeholder-gray-500 focus:border-[#2D5D4F] focus:bg-white focus:outline-none transition-colors duration-200 ${getBorderColor('lastName')}`}
+                  placeholder="أدخل اسم العائلة"
+                  className={`w-full bg-gray-50 border-2 pr-4 pl-4 py-3 rounded-xl text-[#0e1b18] text-right placeholder-gray-400 focus:border-[#2D5D4F] focus:bg-white focus:outline-none transition-colors duration-200 ${getBorderColor('lastName')}`}
                   required
                   autoComplete="family-name"
                 />
-                {fieldErrors.lastName?.message && <p className="text-red-600 text-sm text-right mt-1">{fieldErrors.lastName.message}</p>}
+                {fieldErrors.lastName?.message && <p className="text-red-600 text-sm text-right mt-1 animate-fade-in">{fieldErrors.lastName.message}</p>}
               </div>
-            </div>
-            <div>
-              <label className="block text-sm font-semibold text-[#0e1b18] text-right mb-2" htmlFor="email">البريد الإلكتروني</label>
-              <div className="relative">
-                <FormInput
-                  type="email"
-                  id="email"
-                  name="email"
-                  value={formData.email}
-                  onChange={handleInputChange}
-                  placeholder="youremail@example.com"
-                  className={`w-full bg-gray-50 border-2 rounded-xl text-[#0e1b18] text-right placeholder-gray-500 focus:border-[#2D5D4F] focus:bg-white focus:outline-none transition-colors duration-200 ${getBorderColor('email')}`}
-                  required
-                  autoComplete="email"
-                />
-                <span className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-500">
-                  <svg width="20" height="20" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="lucide lucide-mail"><rect width="20" height="20" fill="none"/><path d="M4 4h12v12H4z" stroke="none"/><path d="M4 4l8 8m0 0l8-8"/></svg>
-                </span>
-                {fieldErrors.email?.message && <p className="text-red-600 text-sm text-right mt-1">{fieldErrors.email.message}</p>}
+              {/* Email Field */}
+              <div className="w-full">
+                <label className="block text-sm font-semibold text-[#0e1b18] text-right mb-2" htmlFor="email">البريد الإلكتروني</label>
+                <div className="relative flex items-center w-full">
+                  <FormInput
+                    type="email"
+                    id="email"
+                    name="email"
+                    value={formData.email}
+                    onChange={handleInputChange}
+                    placeholder="example@email.com"
+                    className={`w-full bg-gray-50 border-2 pr-12 pl-4 py-3 rounded-xl text-[#0e1b18] text-right placeholder-gray-400 focus:bg-white focus:outline-none transition-colors duration-200 ${getBorderColor('email')}`}
+                    required
+                    autoComplete="email"
+                  />
+                  <Mail className="absolute right-4 top-1/2 transform -translate-y-1/2 h-5 w-5 text-deep-teal pointer-events-none" />
+                  {fieldErrors.email?.message && (
+                    <AlertCircle className="absolute left-4 top-1/2 transform -translate-y-1/2 h-5 w-5 text-red-500 animate-fade-in pointer-events-none" />
+                  )}
+                </div>
+                {fieldErrors.email?.message && <p className="text-red-600 text-sm text-right mt-1 animate-fade-in">{fieldErrors.email.message}</p>}
               </div>
-            </div>
-            <div>
-              <label className="block text-sm font-semibold text-[#0e1b18] text-right mb-2" htmlFor="phoneNumber">رقم الهاتف</label>
-              <div className="relative">
-                <FormInput
-                  type="tel"
-                  id="phoneNumber"
-                  name="phoneNumber"
-                  value={formData.phoneNumber}
-                  onChange={handleInputChange}
-                  placeholder="+20 1XX XXX XXXX"
-                  className={`w-full bg-gray-50 border-2 rounded-xl text-[#0e1b18] text-right placeholder-gray-500 focus:border-[#2D5D4F] focus:bg-white focus:outline-none transition-colors duration-200 ${getBorderColor('phoneNumber')}`}
-                  required
-                  autoComplete="tel"
-                />
-                <span className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-500">
-                  <svg width="20" height="20" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="lucide lucide-phone"><rect width="20" height="20" fill="none"/><path d="M4 4h12v12H4z" stroke="none"/><path d="M4 4l8 8m0 0l8-8"/></svg>
-                </span>
-                {fieldErrors.phoneNumber?.message && <p className="text-red-600 text-sm text-right mt-1">{fieldErrors.phoneNumber.message}</p>}
+              {/* Phone Field */}
+              <div className="w-full">
+                <label className="block text-sm font-semibold text-[#0e1b18] text-right mb-2" htmlFor="phoneNumber">رقم الهاتف</label>
+                <div className="relative flex items-center w-full">
+                  <FormInput
+                    type="tel"
+                    id="phoneNumber"
+                    name="phoneNumber"
+                    value={formData.phoneNumber}
+                    onChange={handleInputChange}
+                    placeholder="مثال: 01012345678"
+                    className={`w-full bg-gray-50 border-2 pr-12 pl-4 py-3 rounded-xl text-[#0e1b18] text-right placeholder-gray-400 focus:bg-white focus:outline-none transition-colors duration-200 ${getBorderColor('phoneNumber')}`}
+                    required
+                    autoComplete="tel"
+                  />
+                  <Phone className="absolute right-4 top-1/2 transform -translate-y-1/2 h-5 w-5 text-deep-teal pointer-events-none" />
+                  {fieldErrors.phoneNumber?.message && (
+                    <AlertCircle className="absolute left-4 top-1/2 transform -translate-y-1/2 h-5 w-5 text-red-500 animate-fade-in pointer-events-none" />
+                  )}
+                </div>
+                {fieldErrors.phoneNumber?.message && <p className="text-red-600 text-sm text-right mt-1 animate-fade-in">{fieldErrors.phoneNumber.message}</p>}
               </div>
-            </div>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-              <div>
+              {/* Password Field */}
+              <div className="w-full">
                 <label className="block text-sm font-semibold text-[#0e1b18] text-right mb-2" htmlFor="password">كلمة المرور</label>
-                <FormInput
-                  type="password"
-                  id="password"
-                  name="password"
-                  value={formData.password}
-                  onChange={handleInputChange}
-                  placeholder="••••••••"
-                  className={`w-full bg-gray-50 border-2 rounded-xl text-[#0e1b18] text-right placeholder-gray-500 focus:border-[#2D5D4F] focus:bg-white focus:outline-none transition-colors duration-200 ${getBorderColor('password')}`}
-                  required
-                  autoComplete="new-password"
-                />
-                {fieldErrors.password?.message && <p className="text-red-600 text-sm text-right mt-1">{fieldErrors.password.message}</p>}
-                <PasswordStrengthIndicator password={formData.password} />
+                <div className="relative flex items-center">
+                  <FormInput
+                    type={showPassword ? 'text' : 'password'}
+                    id="password"
+                    name="password"
+                    value={formData.password}
+                    onChange={handleInputChange}
+                    placeholder="أدخل كلمة المرور"
+                    className={`w-full bg-gray-50 border-2 pr-12 pl-4 py-3 rounded-xl text-[#0e1b18] text-right placeholder-gray-400 focus:bg-white focus:outline-none transition-colors duration-200 ${getBorderColor('password')}`}
+                    required
+                    autoComplete="new-password"
+                  />
+                  <Lock className="absolute right-4 top-1/2 transform -translate-y-1/2 h-5 w-5 text-deep-teal pointer-events-none" />
+                  <button
+                    type="button"
+                    onClick={() => setShowPassword(v => !v)}
+                    className="absolute left-10 top-1/2 transform -translate-y-1/2 text-accent hover:text-deep-teal transition-colors focus:outline-none"
+                    aria-label={showPassword ? 'إخفاء كلمة المرور' : 'إظهار كلمة المرور'}
+                    tabIndex={0}
+                  >
+                    {showPassword ? <EyeOff size={20} /> : <Eye size={20} />}
+                  </button>
+                  {fieldErrors.password?.message && (
+                    <AlertCircle className="absolute left-4 top-1/2 transform -translate-y-1/2 h-5 w-5 text-red-500 animate-fade-in pointer-events-none" />
+                  )}
+                </div>
+                <div className="mt-1 mb-2">
+                  <PasswordStrengthIndicator password={formData.password} />
+                </div>
+                {fieldErrors.password?.message && <p className="text-red-600 text-sm text-right mt-1 animate-fade-in">{fieldErrors.password.message}</p>}
               </div>
-              <div>
+              {/* Confirm Password Field */}
+              <div className="w-full">
                 <label className="block text-sm font-semibold text-[#0e1b18] text-right mb-2" htmlFor="confirmPassword">تأكيد كلمة المرور</label>
-                <FormInput
-                  type="password"
-                  id="confirmPassword"
-                  name="confirmPassword"
-                  value={formData.confirmPassword}
-                  onChange={handleInputChange}
-                  placeholder="••••••••"
-                  className={`w-full bg-gray-50 border-2 rounded-xl text-[#0e1b18] text-right placeholder-gray-500 focus:border-[#2D5D4F] focus:bg-white focus:outline-none transition-colors duration-200 ${getBorderColor('confirmPassword')}`}
-                  required
-                  autoComplete="new-password"
-                />
-                {fieldErrors.confirmPassword?.message && <p className="text-red-600 text-sm text-right mt-1">{fieldErrors.confirmPassword.message}</p>}
+                <div className="relative flex items-center">
+                  <FormInput
+                    type="password"
+                    id="confirmPassword"
+                    name="confirmPassword"
+                    value={formData.confirmPassword}
+                    onChange={handleInputChange}
+                    placeholder="أعد إدخال كلمة المرور"
+                    className={`w-full bg-gray-50 border-2 pr-4 pl-4 py-3 rounded-xl text-[#0e1b18] text-right placeholder-gray-400 focus:border-[#2D5D4F] focus:bg-white focus:outline-none transition-colors duration-200 ${getBorderColor('confirmPassword')}`}
+                    required
+                    autoComplete="new-password"
+                  />
+                  {fieldErrors.confirmPassword?.message && (
+                    <AlertCircle className="absolute left-4 top-1/2 transform -translate-y-1/2 h-5 w-5 text-red-500 animate-fade-in pointer-events-none" />
+                  )}
+                </div>
+                {fieldErrors.confirmPassword?.message && <p className="text-red-600 text-sm text-right mt-1 animate-fade-in">{fieldErrors.confirmPassword.message}</p>}
               </div>
-            </div>
-            {fieldErrors.general?.message && <div className="text-red-600 text-sm text-right bg-red-50 p-3 rounded-lg border border-red-200">{fieldErrors.general.message}</div>}
-            
-            {/* Form Status Helper */}
-            {hasUserInteracted && !isFormComplete() && (
-              <div className="text-amber-600 text-sm text-right bg-amber-50 p-3 rounded-lg border border-amber-200">
-                يرجى ملء جميع الحقول المطلوبة
+              <Button
+                type="submit"
+                variant="primary"
+                size="lg"
+                fullWidth
+                loading={loading}
+                className="rounded-xl transition-all duration-200 shadow-md hover:shadow-lg"
+                disabled={!isFormValid()}
+              >
+                إنشاء حساب
+              </Button>
+              {/* Form Status Helper */}
+              {hasUserInteracted && !isFormComplete() && (
+                <div className="text-amber-600 text-sm text-center bg-amber-50 p-3 rounded-lg border border-amber-200 animate-fade-in">يرجى ملء جميع الحقول المطلوبة</div>
+              )}
+              {hasUserInteracted && isFormComplete() && hasFormErrors() && (
+                <div className="text-red-600 text-sm text-center bg-red-50 p-3 rounded-lg border border-red-200 animate-fade-in">يرجى تصحيح الأخطاء قبل المتابعة</div>
+              )}
+              <div className="text-center">
+                <span className="text-sm text-[#0e1b18]">لديك حساب بالفعل؟{' '}
+                  <Link to="/login" className="font-bold text-[#2D5D4F] hover:text-[#F5A623] transition-colors duration-200 focus:outline-none focus:underline">تسجيل الدخول</Link>
+                </span>
               </div>
-            )}
-            
-            {hasUserInteracted && isFormComplete() && hasFormErrors() && (
-              <div className="text-red-600 text-sm text-right bg-red-50 p-3 rounded-lg border border-red-200">
-                يرجى تصحيح الأخطاء قبل المتابعة
-              </div>
-            )}
-            
-            <Button
-              type="submit"
-              variant="primary"
-              size="lg"
-              fullWidth
-              loading={loading}
-              className={`rounded-xl transition-all duration-200 ${
-                !isFormValid() 
-                  ? 'opacity-50 cursor-not-allowed bg-gray-400 hover:bg-gray-400' 
-                  : 'hover:bg-[#1a4a3f]'
-              }`}
-              disabled={!isFormValid()}
-            >
-              {!hasUserInteracted || !isFormComplete() 
-                ? 'املأ جميع الحقول' 
-                : hasFormErrors() 
-                  ? 'صحح الأخطاء' 
-                  : 'إنشاء حساب'
-              }
-            </Button>
-            <div className="text-center">
-              <span className="text-sm text-[#0e1b18]">
-                لديك حساب بالفعل؟{' '}
-                <Link
-                  to="/login"
-                  className="font-bold text-[#2D5D4F] hover:text-[#F5A623] transition-colors duration-200 focus:outline-none focus:underline"
-                >
-                  تسجيل الدخول
-                </Link>
-              </span>
-            </div>
-          </form>
-        </BaseCard>
+            </form>
+          </BaseCard>
+        </div>
       </div>
     </div>
   );

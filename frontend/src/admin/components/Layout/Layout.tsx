@@ -19,11 +19,11 @@ const AdminLayout: React.FC = () => {
 
   return (
     <ToastProvider>
-      <div className="min-h-screen bg-warm-cream">
+      <div className="h-screen bg-warm-cream flex flex-col">
         <Header onMenuClick={toggleSidebar} title="Admin Dashboard" />
-        <div className="flex min-h-screen">
-          <Sidebar isOpen={sidebarOpen} onClose={closeSidebar} className="h-screen" />
-          <main className="flex-1 lg:ml-0">
+        <div className="flex flex-1 overflow-hidden">
+          <Sidebar isOpen={sidebarOpen} onClose={closeSidebar} />
+          <main className="flex-1 overflow-y-auto">
             <div className="container mx-auto p-4 lg:p-8">
               <Outlet />
             </div>

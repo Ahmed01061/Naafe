@@ -4,7 +4,6 @@ import {
   Home, 
   Users, 
   List, 
-  Settings, 
   LogOut,
   Layers,
   AlertTriangle,
@@ -27,7 +26,6 @@ const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose, className }) => {
     { path: '/admin/categories', icon: List, label: 'الفئات' },
     { path: '/admin/upgrade-requests', icon: List, label: 'طلبات الترقية' },
     { path: '/admin/complaints', icon: AlertTriangle, label: 'البلاغات' },
-    { path: '/admin/settings', icon: Settings, label: 'الإعدادات' },
   ];
 
   return (
@@ -42,19 +40,19 @@ const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose, className }) => {
       
       {/* Sidebar */}
       <aside 
-        className={`fixed left-0 top-0 z-50 h-full w-64 bg-deep-teal text-warm-cream transform transition-transform duration-300 ease-in-out lg:transform-none lg:relative lg:translate-x-0 ${
+        className={`fixed left-0 top-0 z-50 h-screen w-64 bg-deep-teal text-warm-cream transform transition-transform duration-300 ease-in-out lg:transform-none lg:relative lg:translate-x-0 ${
           isOpen ? 'translate-x-0' : '-translate-x-full'
         } ${className || ''}`}
       >
-        <div className="flex h-full flex-col p-6">
+        <div className="flex h-full flex-col p-6 overflow-y-auto">
           {/* Logo */}
-          <div className="flex items-center gap-3 mb-10">
+          <div className="flex items-center gap-3 mb-10 flex-shrink-0">
             <Layers className="h-8 w-8 text-warm-cream" />
             <h1 className="text-2xl font-bold text-warm-cream">Naafe'</h1>
           </div>
 
           {/* Navigation */}
-          <nav className="flex-1">
+          <nav className="flex-1 overflow-y-auto">
             <ul className="space-y-2">
               {navItems.map((item) => (
                 <li key={item.path}>
@@ -100,7 +98,7 @@ const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose, className }) => {
           </nav>
 
           {/* Logout */}
-          <div className="mt-auto">
+          <div className="mt-auto flex-shrink-0">
             <button 
               onClick={async () => {
                 try {

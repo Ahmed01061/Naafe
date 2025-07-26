@@ -1,5 +1,7 @@
 import React, { useState } from 'react';
 import { FormInput, FormTextarea } from '../ui';
+import UnifiedSelect from '../ui/UnifiedSelect';
+import { EGYPT_GOVERNORATES, EGYPT_CITIES } from '../../utils/constants';
 import { useAuth } from '../../contexts/AuthContext';
 
 const IMGBB_API_KEY = import.meta.env.VITE_IMGBB_API_KEY;
@@ -12,6 +14,7 @@ interface ProfileBuilderProps {
 
 interface ProfileFormData {
   avatar?: File | null;
+  bio: string;
   government: string;
   city: string;
   street: string;
@@ -21,6 +24,7 @@ interface ProfileFormData {
 
 const defaultFormData: ProfileFormData = {
   avatar: null,
+  bio: '',
   government: '',
   city: '',
   street: '',
@@ -41,6 +45,14 @@ const ProfileBuilder: React.FC<ProfileBuilderProps> = ({
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState(false);
+  const [selectedGovernorate, setSelectedGovernorate] = useState('');
+  const [selectedCity, setSelectedCity] = useState('');
+  const [customCity, setCustomCity] = useState('');
+
+  // Update city list when governorate changes
+  const cityOptions = selectedGovernorate
+    ? [...(EGYPT_CITIES[selectedGovernorate] || []), 'أخرى']
+    : [];
 
   // Get user initials for avatar placeholder
   const getUserInitials = () => {
@@ -91,6 +103,7 @@ const ProfileBuilder: React.FC<ProfileBuilderProps> = ({
 
     const updateData: Record<string, unknown> = {
       profile: {
+        bio: formData.bio,
         location: addressData,
       }
     };
@@ -193,28 +206,63 @@ const ProfileBuilder: React.FC<ProfileBuilderProps> = ({
           <span className="text-xs text-gray-500">اختياري: يمكنك رفع صورة شخصية</span>
         </div>
 
+        {/* Bio Field */}
+        <FormTextarea
+          id="bio"
+          name="bio"
+          label="نبذة شخصية (اختياري)"
+          placeholder="أخبرنا عن نفسك بإيجاز... مهاراتك، خبراتك، أو أي شيء تود مشاركته"
+          value={formData.bio}
+          onChange={handleChange}
+          rows={3}
+        />
+
         {/* الحقول */}
-        <FormInput
-          type="text"
-          id="government"
-          name="government"
+        <UnifiedSelect
+          value={selectedGovernorate}
+          onChange={val => {
+            setSelectedGovernorate(val);
+            setSelectedCity('');
+            setCustomCity('');
+            setFormData(prev => ({ ...prev, government: EGYPT_GOVERNORATES.find(g => g.id === val)?.name || '' }));
+          }}
+          options={EGYPT_GOVERNORATES.map(g => ({ value: g.id, label: g.name }))}
+          placeholder="اختر المحافظة"
+          isSearchable
+          searchPlaceholder="ابحث عن محافظة..."
+          required
           label="المحافظة"
-          placeholder="مثال: القاهرة، الجيزة، الإسكندرية"
-          value={formData.government}
-          onChange={handleChange}
-          required
         />
-        
-        <FormInput
-          type="text"
-          id="city"
-          name="city"
+        <UnifiedSelect
+          value={selectedCity}
+          onChange={val => {
+            setSelectedCity(val);
+            setCustomCity('');
+            setFormData(prev => ({ ...prev, city: val === 'أخرى' ? '' : val }));
+          }}
+          options={cityOptions.map(city => ({ value: city, label: city }))}
+          placeholder="اختر المدينة"
+          isSearchable
+          searchPlaceholder="ابحث عن مدينة..."
+          required
           label="المدينة"
-          placeholder="مثال: مدينة نصر، المعادي، الزمالك"
-          value={formData.city}
-          onChange={handleChange}
-          required
+          disabled={!selectedGovernorate}
         />
+        {selectedCity === 'أخرى' && (
+          <FormInput
+            type="text"
+            value={customCity}
+            onChange={e => {
+              setCustomCity(e.target.value);
+              setFormData(prev => ({ ...prev, city: e.target.value }));
+            }}
+            placeholder="أدخل اسم المدينة"
+            size="md"
+            className="mt-2"
+            required
+            label="مدينة أخرى"
+          />
+        )}
         
         <FormInput
           type="text"
